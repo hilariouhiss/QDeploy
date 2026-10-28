@@ -83,15 +83,45 @@ textarea {
 .frame {
   display: grid;
   grid-template-columns: var(--sidebar) 1fr;
-  grid-template-rows: 48px 1fr;
+  grid-template-rows: 44px 1fr;
   height: 100vh;
 }
+/* The window has no native frame; this bar is the title bar. */
 .topbar {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 16px;
+  padding: 0 0 0 16px;
+  user-select: none;
+  cursor: default;
+}
+.wincontrols {
+  margin-left: 12px;
+  align-self: stretch;
+  display: flex;
+}
+.winbtn {
+  width: 46px;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.winbtn svg {
+  width: 14px;
+  height: 14px;
+}
+.winbtn:hover {
+  background: #e9edee;
+  color: var(--text);
+}
+.winbtn.close:hover {
+  background: var(--negative);
+  color: #fff;
 }
 .mark {
   width: 20px;

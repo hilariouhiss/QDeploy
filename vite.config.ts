@@ -6,5 +6,10 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   clearScreen: false,
-  server: { port: 1420, strictPort: true },
+  server: {
+    port: 1420,
+    strictPort: true,
+    // src-tauri/target holds the running exe; watching it spams EBUSY and blanks the webview.
+    watch: { ignored: ["**/src-tauri/**"] },
+  },
 });

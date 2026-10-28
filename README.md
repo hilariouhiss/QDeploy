@@ -16,6 +16,10 @@
 
 字体随包（IBM Plex Sans / Plex Mono 的 woff2 在 `src/assets/fonts/`），不依赖 CDN。
 
+窗口没有系统标题栏：顶部 44px 是自绘的标题栏（标记、名字、机器范围、最小化/最大化/关闭），拖动区和按钮分开，边缘仍然可缩放（窗口样式保留 WS_THICKFRAME）。
+首帧由 `index.html` 直接画出底色与标记，不走 JS；任何渲染异常会被 `src/main.ts` 拦住并显示成错误面板，不会白屏。
+应用图标是同一个 3×3 标记（`design/app-icon.png` 源图，`pnpm tauri icon` 生成全套）。
+
 ## 配置
 
 单一 JSON：`%APPDATA%\QDeploy\config.json`，分两块：
