@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>QDeploy — GammaLink</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <div class="frame">
+      <header class="topbar">
+        <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
+          <rect x="0" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="7.2" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="14.4" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="0" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="7.2" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="14.4" y="7.2" width="5.6" height="5.6" rx="1" fill="#dfe3e5" />
+          <rect x="0" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="7.2" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="14.4" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+        </svg>
+        <span class="brand">QDeploy</span>
+        <div class="scope">
+          <span class="mono">C:\Qt</span><span>2 个套件</span><span>ISCC 6.5</span>
+        </div>
+      </header>
+
+      <nav class="side">
+        <a class="navitem on">产品<span class="count">12</span></a>
+        <a class="navitem">发版记录<span class="count">38</span></a>
+        <a class="navitem">设置</a>
+        <div class="side-foot"><b>本机</b>暂存 D:\QDeploy\staging<br />模板 common_setup.iss</div>
+      </nav>
+
+      <div class="sheetwrap">
+        <main class="sheet">
+          <div class="crumb">产品 <span>/</span> GammaLink</div>
+
+          <div class="titlerow">
+            <div>
+              <h1>GammaLink</h1>
+              <div class="sub">
+                Qt 6.12.0 · llvm-mingw 64 位 · <span class="neg">exe 没有版本资源</span> · 上次 今天
+                17:03 失败
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn ghost">仅部署</button>
+              <button class="btn">仅打包</button>
+              <button class="btn primary">部署并打包</button>
+            </div>
+          </div>
+
+          <div class="detail">
+            <div>
+              <section class="section">
+                <div class="h2">
+                  上次运行<span class="side">今天 17:03 · 用时 7.6 秒 · 暂存已保留 1 个目录</span>
+                </div>
+                <div class="steps">
+                  <div class="st done">
+                    <div class="bar"></div>
+                    <div class="nm">预检</div>
+                    <div class="ms">12 ms</div>
+                  </div>
+                  <div class="st done">
+                    <div class="bar"></div>
+                    <div class="nm">清空</div>
+                    <div class="ms">8 ms</div>
+                  </div>
+                  <div class="st done">
+                    <div class="bar"></div>
+                    <div class="nm">拷 exe</div>
+                    <div class="ms">3 ms</div>
+                  </div>
+                  <div class="st done">
+                    <div class="bar"></div>
+                    <div class="nm">拷清单</div>
+                    <div class="ms">41 ms</div>
+                  </div>
+                  <div class="st done">
+                    <div class="bar"></div>
+                    <div class="nm">windeployqt</div>
+                    <div class="ms">6.4 s</div>
+                  </div>
+                  <div class="st done">
+                    <div class="bar"></div>
+                    <div class="nm">排除</div>
+                    <div class="ms">5 ms</div>
+                  </div>
+                  <div class="st done">
+                    <div class="bar"></div>
+                    <div class="nm">生成 iss</div>
+                    <div class="ms">2 ms</div>
+                  </div>
+                  <div class="st fail">
+                    <div class="bar"></div>
+                    <div class="nm">ISCC</div>
+                    <div class="ms" style="color: var(--negative)">失败</div>
+                  </div>
+                  <div class="st">
+                    <div class="bar"></div>
+                    <div class="nm">清理</div>
+                    <div class="ms">跳过</div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="h2">日志摘录<span class="side">完整日志 12 KB · 打开</span></div>
+                <pre
+                  class="log"
+                >17:03:04  识别为 6.12.0-llvm-mingw-64 → C:\Qt\6.12.0\llvm-mingw_64\bin\windeployqt.exe
+17:03:11  windeployqt --release --no-translations GammaLink.exe
+17:03:12  生成 D:\QDeploy\staging\.iss\GammaLink\local.iss .deploy.iss GammaLink.iss
+17:03:13  ISCC.exe GammaLink.iss
+<span class="err">17:03:14  Error on line 60 in common_setup.iss:
+17:03:14  无法从 exe 读取版本号，请检查路径是否正确且 exe 包含版本资源。
+17:03:14  ISCC 失败，退出码 2</span></pre>
+                <div class="sub" style="margin-top: 12px">
+                  停在 ISCC：模板编译阶段读不到版本号。填一个版本覆盖，或用带版本资源的 exe
+                  重编；暂存留着了，可以直接「仅打包」重试。
+                </div>
+              </section>
+
+              <section class="section">
+                <div class="h2">发版记录<span class="side">最近 4 次</span></div>
+                <table class="mtable hist">
+                  <thead>
+                    <tr>
+                      <th>版本</th>
+                      <th>时间</th>
+                      <th class="n">用时</th>
+                      <th>结果</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="p">0.9.4.0</td>
+                      <td>今天 17:03</td>
+                      <td class="n">7.6 s</td>
+                      <td style="color: var(--negative)">ISCC 失败</td>
+                    </tr>
+                    <tr>
+                      <td class="p">0.9.3.1</td>
+                      <td>10-27 14:22</td>
+                      <td class="n">8.1 s</td>
+                      <td>成功</td>
+                    </tr>
+                    <tr>
+                      <td class="p">0.9.3.0</td>
+                      <td>10-17 11:40</td>
+                      <td class="n">7.9 s</td>
+                      <td>成功</td>
+                    </tr>
+                    <tr>
+                      <td class="p">0.9.2.8</td>
+                      <td>10-03 16:05</td>
+                      <td class="n">8.4 s</td>
+                      <td>成功</td>
+                    </tr>
+                    <tr>
+                      <td class="p">0.9.2.6</td>
+                      <td>09-28 09:12</td>
+                      <td class="n">8.0 s</td>
+                      <td>成功</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+            </div>
+
+            <aside>
+              <section class="section">
+                <div class="h2">基本信息</div>
+                <dl class="kv">
+                  <dt>工具链</dt>
+                  <dd class="mono">6.12.0-llvm-mingw-64</dd>
+                  <dt>exe</dt>
+                  <dd class="mono">
+                    C:\<wbr />Work\<wbr />build\<wbr />GammaLink\<wbr />release\<wbr />GammaLink.exe
+                  </dd>
+                  <dt>GUID</dt>
+                  <dd class="mono">4B1D9C7E-2A85-4F30-9E61-0C7A5D2F8B14</dd>
+                  <dt>输出</dt>
+                  <dd class="mono">D:\<wbr />QDeploy\<wbr />out</dd>
+                  <dt>版本</dt>
+                  <dd>读 exe（失败）· 覆盖为空</dd>
+                  <dt>额外参数</dt>
+                  <dd class="mono">--no-translations</dd>
+                </dl>
+              </section>
+
+              <section class="section">
+                <div class="h2">文件清单<span class="side">添加 4 · 移除 2</span></div>
+                <table class="mtable">
+                  <thead>
+                    <tr>
+                      <th>添加</th>
+                      <th>暂存目录内</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="p">config\app.ini</td>
+                      <td class="p">config\app.ini</td>
+                    </tr>
+                    <tr>
+                      <td class="p">..\assets\logo.png</td>
+                      <td class="p">assets\logo.png</td>
+                    </tr>
+                    <tr>
+                      <td class="p">D:\thirdparty\ffmpeg\bin</td>
+                      <td class="p">ffmpeg</td>
+                    </tr>
+                    <tr>
+                      <td class="p">D:\thirdparty\licenses</td>
+                      <td class="p">docs\licenses</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <table class="mtable" style="margin-top: 16px">
+                  <thead>
+                    <tr>
+                      <th>移除</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="p">plugins\sqldrivers\*</td>
+                    </tr>
+                    <tr>
+                      <td class="p">plugins\imageformats\qgif.dll</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

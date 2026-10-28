@@ -46,14 +46,28 @@ export interface ProbeInfo {
   versionShort: string;
 }
 
-export type Stages = "deploy" | "package" | "both";
+export interface StageRun {
+  name: string;
+  ms: number;
+  state: string;
+}
 
-export type RunStatus = "pending" | "running" | "ok" | "failed";
+export interface RunRecord {
+  appName: string;
+  at: number;
+  durationMs: number;
+  ok: boolean;
+  message: string;
+  installer: string;
+  version: string;
+  stagingKept: string;
+  stages: StageRun[];
+}
 
 export interface ProductRunEvent {
   appName: string;
-  status: RunStatus;
-  step: string;
+  status: string;
+  stage: number;
   message: string;
   stagingKept: string;
   installer: string;
@@ -64,10 +78,19 @@ export interface LogEvent {
   line: string;
 }
 
-export interface DoneEvent {
-  ok: number;
-  failed: number;
-}
+export type Stages = "deploy" | "package" | "both";
+
+export const STAGE_NAMES = [
+  "预检",
+  "清空",
+  "拷 exe",
+  "拷清单",
+  "windeployqt",
+  "排除",
+  "生成 iss",
+  "ISCC",
+  "清理",
+];
 
 export function emptyProduct(): ProductConfig {
   return {

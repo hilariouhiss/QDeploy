@@ -1,71 +1,88 @@
 <script setup lang="ts">
 import { open } from "@tauri-apps/plugin-dialog";
-import type { ManifestEntry } from "../types";
+import type { ProductConfig } from "../types";
 
-const props = defineProps<{ entries: ManifestEntry[] }>();
+const props = defineProps<{ product: ProductConfig }>();
 
-async function add(entry: ManifestEntry) {
-  props.entries.push(entry);
-}
-
-async function pick(index: number, dir: boolean) {
+async function addFile(dir: boolean) {
   const picked = await open({ directory: dir, multiple: false });
   if (typeof picked !== "string") return;
-  const entry = props.entries[index];
-  entry.source = picked;
-  if (!entry.target) entry.target = picked.split(/[\\/]/).pop() ?? "";
+  const parts = picked.split(/[\\/]/);
+  props.product.include.push({ source: picked, target: parts[parts.length - 1] || "" });
 }
 </script>
 
 <template>
-  <div class="card bg-base-200/60">
-    <div class="card-body p-3 gap-2">
-      <div class="flex items-center gap-2">
-        <h3 class="font-medium text-sm">添加文件（部署时复制进暂存目录）</h3>
-        <div class="flex-1"></div>
-        <button class="btn btn-xs" @click="add({ source: '', target: '' })">+ 手填</button>
-        <button
-          class="btn btn-xs"
-          @click="
-            add({ source: '', target: '' });
-            pick(entries.length - 1, false);
-          "
-        >
-          + 文件
-        </button>
-        <button
-          class="btn btn-xs"
-          @click="
-            add({ source: '', target: '' });
-            pick(entries.length - 1, true);
-          "
-        >
-          + 目录
-        </button>
-      </div>
+  <div>
+    <div class="h2">
+      文件清单
+      <span class="side"
+        >添加 {{ product.include.length }} · 移除 {{ product.exclude.length }}</span
+      >
+    </div>
 
-      <table class="table table-xs">
-        <thead>
-          <tr>
-            <th>源（相对 exe 目录，或绝对路径）</th>
-            <th>暂存目录内目标</th>
-            <th class="w-16"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(e, i) in entries" :key="i">
-            <td><input v-model="e.source" class="input input-xs w-full font-mono" /></td>
-            <td><input v-model="e.target" class="input input-xs w-full font-mono" /></td>
-            <td class="text-right">
-              <button class="btn btn-ghost btn-xs" @click="pick(i, false)">选</button>
-              <button class="btn btn-ghost btn-xs" @click="entries.splice(i, 1)">×</button>
-            </td>
-          </tr>
-          <tr v-if="entries.length === 0">
-            <td colspan="3" class="text-center opacity-50">还没有添加项</td>
-          </tr>
-        </tbody>
-      </table>
+    <table class="mtable">
+      <thead>
+        <tr>
+          <th>添加（相对 exe 目录或绝对路径）</th>
+          <th>暂存目录内</th>
+          <th style="width: 56px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(e, i) in product.include" :key="i">
+          <td><input v-model="e.source" class="input mono" style="height: 26px" /></td>
+          <td><input v-model="e.target" class="input mono" style="height: 26px" /></td>
+          <td style="text-align: right">
+            <button
+              class="btn ghost"
+              style="height: 24px; padding: 0 6px"
+              @click="product.include.splice(i, 1)"
+            >
+              ×
+            </button>
+          </td>
+        </tr>
+        <tr v-if="product.include.length === 0">
+          <td colspan="3" class="muted">没有额外文件</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="display: flex; gap: 8px; margin-top: 8px">
+      <button class="btn ghost" @click="addFile(false)">+ 文件</button>
+      <button class="btn ghost" @click="addFile(true)">+ 目录</button>
+      <button class="btn ghost" @click="product.include.push({ source: '', target: '' })">
+        + 手填
+      </button>
+    </div>
+
+    <table class="mtable" style="margin-top: 18px">
+      <thead>
+        <tr>
+          <th>移除（相对暂存目录的通配）</th>
+          <th style="width: 40px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(pat, i) in product.exclude" :key="i">
+          <td><input v-model="product.exclude[i]" class="input mono" style="height: 26px" /></td>
+          <td style="text-align: right">
+            <button
+              class="btn ghost"
+              style="height: 24px; padding: 0 6px"
+              @click="product.exclude.splice(i, 1)"
+            >
+              ×
+            </button>
+          </td>
+        </tr>
+        <tr v-if="product.exclude.length === 0">
+          <td colspan="2" class="muted">没有排除规则</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top: 8px">
+      <button class="btn ghost" @click="product.exclude.push('')">+ 规则</button>
     </div>
   </div>
 </template>

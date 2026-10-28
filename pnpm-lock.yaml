@@ -131,9 +131,6 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^6
         version: 6.0.10(@voidzero-dev/vite-plus-core@1.4.0(jiti@2.7.0)(typescript@5.9.3))(vue@3.5.44(typescript@5.9.3))
-      daisyui:
-        specifier: ^5
-        version: 5.7.50
       tailwindcss:
         specifier: ^4
         version: 4.3.3
@@ -971,9 +968,6 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
-
-  daisyui@5.7.50:
-    resolution: {integrity: sha512-+/LRqnTCoc7s/bJEKKwtJSwzeXCVdAmRdNmZeZzgHCaQ9PJyl7j+2V2U32GQDMyD+VDkP9e/+JGoC72Y1hLk7w==}
 
   dequal@2.0.3:
     resolution: {integrity: sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==}
@@ -1965,8 +1959,6 @@ snapshots:
   convert-source-map@2.0.0: {}
 
   csstype@3.2.3: {}
-
-  daisyui@5.7.50: {}
 
   dequal@2.0.3: {}
 

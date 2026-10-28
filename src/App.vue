@@ -1,122 +1,86 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import {
-  store,
-  loadConfig,
-  wireEvents,
-  saveConfig,
-  startRun,
-  cancelRun,
-  checkedNames,
-} from "./store";
-import { emptyProduct } from "./types";
-import ProductPage from "./components/ProductPage.vue";
-import SettingsPage from "./components/SettingsPage.vue";
-import RunPanel from "./components/RunPanel.vue";
+import { computed, onMounted } from "vue";
+import { store, loadConfig, fetchHistory, wireEvents, scanKits } from "./store";
+import ProductsView from "./views/ProductsView.vue";
+import ProductView from "./views/ProductView.vue";
+import HistoryView from "./views/HistoryView.vue";
+import SettingsView from "./views/SettingsView.vue";
 
 onMounted(async () => {
   await loadConfig();
+  await fetchHistory();
   await wireEvents();
-  await invoke("is_running").then((r) => (store.running = Boolean(r)));
+  if (store.cfg.machine.qtRoot) await scanKits();
 });
 
-function newGuid(): string {
-  if (crypto.randomUUID) return crypto.randomUUID().toUpperCase();
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-    .replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
-    })
-    .toUpperCase();
-}
-
-function addProduct() {
-  const p = emptyProduct();
-  p.appName = "Product" + (store.cfg.products.length + 1);
-  p.appId = newGuid();
-  store.cfg.products.push(p);
-  store.current = store.cfg.products.length - 1;
-  store.page = "product";
-}
-
-function selectProduct(i: number) {
-  store.current = i;
-  store.page = "product";
-}
-
-function removeProduct(i: number) {
-  const name = store.cfg.products[i].appName;
-  if (!confirm("删除产品 " + name + "？")) return;
-  store.cfg.products.splice(i, 1);
-  delete store.checked[name];
-  if (store.current >= store.cfg.products.length) store.current = store.cfg.products.length - 1;
-}
-
-const run = (stage: "deploy" | "package" | "both") => startRun(stage);
+const stagingTail = computed(() => store.cfg.machine.stagingRoot || "未设置暂存根");
+const templateName = computed(() => {
+  const p = store.cfg.machine.issTemplatePath;
+  return p ? p.split(/[\\/]/).pop() : "未设置 iss 模板";
+});
+const failed = computed(() => store.history.filter((r) => !r.ok).length);
 </script>
 
 <template>
-  <div class="flex h-full bg-base-100 text-base-content">
-    <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col">
-      <div class="p-3 border-b border-base-300">
-        <h1 class="text-lg font-semibold">QDeploy</h1>
-        <p class="text-xs opacity-60">Qt 部署 · 安装包</p>
+  <div class="frame">
+    <header class="topbar">
+      <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
+        <rect x="0" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+        <rect x="7.2" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+        <rect x="14.4" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+        <rect x="0" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
+        <rect x="7.2" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
+        <rect x="14.4" y="7.2" width="5.6" height="5.6" rx="1" fill="#dfe3e5" />
+        <rect x="0" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+        <rect x="7.2" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+        <rect x="14.4" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+      </svg>
+      <span class="brand">QDeploy</span>
+      <div class="scope">
+        <span class="mono">{{ store.cfg.machine.qtRoot || "Qt 根未设置" }}</span>
+        <span>{{ store.kits.length }} 个套件</span>
       </div>
+    </header>
 
-      <ul class="menu menu-sm flex-1 overflow-auto p-2 gap-0.5">
-        <li v-for="(p, i) in store.cfg.products" :key="p.appName + i">
-          <div
-            class="flex items-center gap-2 w-full"
-            :class="{ active: store.page === 'product' && store.current === i }"
-          >
-            <input
-              type="checkbox"
-              class="checkbox checkbox-xs"
-              :checked="!!store.checked[p.appName]"
-              @change="store.checked[p.appName] = ($event.target as HTMLInputElement).checked"
-              @click.stop
-            />
-            <a class="flex-1 truncate" @click="selectProduct(i)">{{ p.appName || "(未命名)" }}</a>
-            <button class="btn btn-ghost btn-xs px-1" title="删除" @click.stop="removeProduct(i)">
-              ×
-            </button>
-          </div>
-        </li>
-      </ul>
-
-      <div class="p-2 border-t border-base-300 space-y-1">
-        <button class="btn btn-sm btn-block" @click="addProduct">+ 新建产品</button>
-        <button class="btn btn-sm btn-block btn-ghost" @click="store.page = 'settings'">
-          设置
-        </button>
+    <nav class="side">
+      <button
+        class="navitem"
+        :class="{ on: store.page === 'products' }"
+        @click="store.page = 'products'"
+      >
+        产品<span class="count">{{ store.cfg.products.length }}</span>
+      </button>
+      <button
+        class="navitem"
+        :class="{ on: store.page === 'history' }"
+        @click="store.page = 'history'"
+      >
+        发版记录<span class="count">{{ store.history.length }}</span>
+      </button>
+      <button
+        class="navitem"
+        :class="{ on: store.page === 'settings' }"
+        @click="store.page = 'settings'"
+      >
+        设置
+      </button>
+      <div class="side-foot">
+        <b>本机</b>
+        {{ stagingTail }}<br />
+        {{ templateName }}
+        <div v-if="failed" style="color: var(--negative); margin-top: 6px">
+          {{ failed }} 次失败记录
+        </div>
       </div>
-    </aside>
+    </nav>
 
-    <main class="flex-1 flex flex-col min-w-0">
-      <div class="flex items-center gap-2 p-3 border-b border-base-300">
-        <button class="btn btn-sm btn-primary" :disabled="store.running" @click="run('both')">
-          部署并打包
-        </button>
-        <button class="btn btn-sm" :disabled="store.running" @click="run('deploy')">仅部署</button>
-        <button class="btn btn-sm" :disabled="store.running" @click="run('package')">仅打包</button>
-        <button class="btn btn-sm btn-ghost" :disabled="!store.running" @click="cancelRun">
-          取消
-        </button>
-        <span v-if="store.running" class="loading loading-spinner loading-sm"></span>
-        <div class="flex-1"></div>
-        <span class="text-xs opacity-60">{{ checkedNames().length }} 个已勾选</span>
-        <button class="btn btn-sm" @click="saveConfig">保存配置</button>
-      </div>
-
-      <div v-if="store.message" class="px-3 py-1 text-xs bg-base-200">{{ store.message }}</div>
-
-      <div class="flex-1 overflow-auto min-h-0">
-        <SettingsPage v-if="store.page === 'settings'" />
-        <ProductPage v-else />
-      </div>
-
-      <RunPanel />
-    </main>
+    <div class="sheetwrap">
+      <main class="sheet">
+        <ProductsView v-if="store.page === 'products' && !store.detail" />
+        <ProductView v-else-if="store.page === 'products'" />
+        <HistoryView v-else-if="store.page === 'history'" />
+        <SettingsView v-else />
+      </main>
+    </div>
   </div>
 </template>

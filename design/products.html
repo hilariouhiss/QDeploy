@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>QDeploy — 产品</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="mockup.css" />
+  </head>
+  <body>
+    <div class="frame">
+      <header class="topbar">
+        <svg class="mark" viewBox="0 0 20 20" aria-hidden="true">
+          <rect x="0" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="7.2" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="14.4" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="0" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="7.2" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="14.4" y="7.2" width="5.6" height="5.6" rx="1" fill="#dfe3e5" />
+          <rect x="0" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="7.2" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+          <rect x="14.4" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+        </svg>
+        <span class="brand">QDeploy</span>
+        <div class="scope">
+          <span class="mono">C:\Qt</span><span>2 个套件</span><span>ISCC 6.5</span>
+        </div>
+      </header>
+
+      <nav class="side">
+        <a class="navitem on">产品<span class="count">12</span></a>
+        <a class="navitem">发版记录<span class="count">38</span></a>
+        <a class="navitem">设置</a>
+        <div class="side-foot">
+          <b>本机</b>
+          暂存 D:\QDeploy\staging<br />
+          模板 common_setup.iss
+        </div>
+      </nav>
+
+      <div class="sheetwrap">
+        <main class="sheet">
+          <div class="titlerow">
+            <div>
+              <h1>产品</h1>
+              <div class="sub">
+                12 个产品 · 3 个勾选待发 · <span class="neg">GammaLink 17:03 打包失败</span>，其余
+                11 个上次都成功
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn ghost">仅部署</button>
+              <button class="btn">仅打包</button>
+              <button class="btn primary">部署并打包（3）</button>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab on">全部<span class="n">12</span></div>
+            <div class="tab">待发<span class="n">3</span></div>
+            <div class="tab">有问题<span class="n">1</span></div>
+          </div>
+
+          <div class="table">
+            <div class="th">
+              <div></div>
+              <div>产品</div>
+              <div class="c-kit">工具链</div>
+              <div style="text-align: right">版本</div>
+              <div>上次发版</div>
+              <div>阶段</div>
+              <div></div>
+            </div>
+            <div class="tr sel">
+              <div class="check c-check on"></div>
+              <div class="cell c-prod">
+                <div class="pname">AlphaTool</div>
+                <div class="pex mono">AlphaTool.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">1.4.2.0</div>
+              <div class="cell c-when when num"><span>成功</span><small>今天 16:12</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">BetaScope</div>
+                <div class="pex mono">BetaScope.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">2.0.1.3</div>
+              <div class="cell c-when when num"><span>成功</span><small>昨天 18:40</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr sel">
+              <div class="check c-check on"></div>
+              <div class="cell c-prod">
+                <div class="pname">GammaLink</div>
+                <div class="pex mono">GammaLink.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">6.12.0-llvm-mingw-64</div>
+              <div class="cell c-ver ver mono">0.9.4.0</div>
+              <div class="cell c-when when num">
+                <span class="bad">失败</span><small>今天 17:03 · ISCC</small>
+              </div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step fail"></i><i class="step none"></i
+                  ><span class="label">暂存保留</span>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">DeltaVision</div>
+                <div class="pex mono">DeltaVision.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">3.2.0.7</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-24 11:08</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">EchoAnalyzer</div>
+                <div class="pex mono">EchoAnalyzer.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">1.0.6.1</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-24 09:31</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">FoxReader</div>
+                <div class="pex mono">FoxReader.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">6.12.0-llvm-mingw-64</div>
+              <div class="cell c-ver ver mono">0.4.2.0</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-22 15:05</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">GolfSensor</div>
+                <div class="pex mono">GolfSensor.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">2.7.3.0</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-20 14:19</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr sel">
+              <div class="check c-check on"></div>
+              <div class="cell c-prod">
+                <div class="pname">HotelServer</div>
+                <div class="pex mono">HotelServer.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">4.1.0.2</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-18 16:52</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">IndiaProbe</div>
+                <div class="pex mono">IndiaProbe.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">1.2.0.0</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-15 10:04</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">JulietCam</div>
+                <div class="pex mono">JulietCam.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">6.12.0-llvm-mingw-64</div>
+              <div class="cell c-ver ver mono">0.2.1.5</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-11 17:26</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">KiloHub</div>
+                <div class="pex mono">KiloHub.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">5.0.0.9</div>
+              <div class="cell c-when when num"><span>成功</span><small>10-08 13:40</small></div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i
+                  ><i class="step done"></i><i class="step done"></i><i class="step done"></i>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+            <div class="tr">
+              <div class="check c-check"></div>
+              <div class="cell c-prod">
+                <div class="pname">LimaDock</div>
+                <div class="pex mono">LimaDock.exe</div>
+              </div>
+              <div class="cell c-kit kit mono">5.15.2-mingw-64</div>
+              <div class="cell c-ver ver mono">1.9.2.4</div>
+              <div class="cell c-when when num">
+                <span class="muted">—</span><small>从未发版</small>
+              </div>
+              <div class="cell c-ledge">
+                <div class="ledger">
+                  <i class="step none"></i><i class="step none"></i><i class="step none"></i
+                  ><i class="step none"></i><i class="step none"></i><i class="step none"></i
+                  ><i class="step none"></i><i class="step none"></i><i class="step none"></i
+                  ><span class="label">无暂存</span>
+                </div>
+              </div>
+              <div class="c-kebab kebab">···</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

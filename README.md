@@ -5,10 +5,16 @@
 ## 开发
 
     pnpm install
-    pnpm tauri dev      # 开发窗口（Vite+ 起前端，Rust 起壳）
+    pnpm tauri dev      # 开发窗口
     pnpm tauri build    # 出 QDeploy 自己的安装包
     pnpm check          # 格式 + lint
     cargo test --manifest-path src-tauri/Cargo.toml
+
+## 界面
+
+左上角的九格是这套工具的核心：**九个阶段**（预检 / 清空 / 拷 exe / 拷清单 / windeployqt / 排除 / 生成 iss / ISCC / 清理）。列表里它是一行极简段，详情里是九格时间轴加每格耗时；红色那格就是停下的地方。整个界面只有失败项带颜色。
+
+字体随包（IBM Plex Sans / Plex Mono 的 woff2 在 `src/assets/fonts/`），不依赖 CDN。
 
 ## 配置
 
@@ -17,7 +23,8 @@
 - `machine`：这台机器的路径（Qt 安装根、ISCC.exe、暂存根、iss 模板），换电脑只改这里；
 - `products`：每个产品一条（应用名、GUID、exe、套件、输出目录、增删清单）。
 
-日志按次落在 `%APPDATA%\QDeploy\logs\<时间戳>\<应用名>.log`，含每步命令行、退出码与生成的 iss 全文。
+运行历史：`%APPDATA%\QDeploy\history.json`，每次运行一条，含九个阶段的耗时与状态，界面的「发版记录」和列表里的阶段条都读它。
+日志按次落在 `%APPDATA%\QDeploy\logs\<时间戳>\<应用名>.log`。
 
 ## 一次执行
 

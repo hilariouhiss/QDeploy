@@ -1,9 +1,11 @@
 use crate::config::Config;
+use crate::history::{self, RunRecord};
 use crate::runner::{self, RealTools, RunCtx, Stage};
 use serde::Serialize;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 
 #[derive(Clone, Serialize)]
@@ -11,7 +13,8 @@ use tauri::{AppHandle, Emitter};
 struct ProductEvent {
     app_name: String,
     status: &'static str,
-    step: String,
+    /// stage index while running; -1 when it is the final verdict
+    stage: i64,
     message: String,
     staging_kept: String,
     installer: String,
@@ -41,19 +44,16 @@ impl Reporter {
         if let Ok(mut f) = self.file.lock() {
             let _ = writeln!(f, "{line}");
         }
-        let _ = self.app.emit(
-            "run://log",
-            LogEvent { app_name: self.name.clone(), line: line.to_string() },
-        );
+        let _ = self.app.emit("run://log", LogEvent { app_name: self.name.clone(), line: line.to_string() });
     }
 
-    fn event(&self, status: &'static str, step: &str, message: &str, staging_kept: &str, installer: &str) {
+    fn event(&self, status: &'static str, stage: i64, message: &str, staging_kept: &str, installer: &str) {
         let _ = self.app.emit(
             "run://product",
             ProductEvent {
                 app_name: self.name.clone(),
                 status,
-                step: step.to_string(),
+                stage,
                 message: message.to_string(),
                 staging_kept: staging_kept.to_string(),
                 installer: installer.to_string(),
@@ -64,11 +64,12 @@ impl Reporter {
 
 fn log_root() -> std::path::PathBuf {
     let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     std::path::PathBuf::from(base).join("QDeploy").join("logs").join(stamp.to_string())
+}
+
+fn now() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 pub fn start(app: AppHandle, cfg: Config, names: Vec<String>, stage: Stage, running: Arc<AtomicBool>, cancel: Arc<AtomicBool>) {
@@ -92,12 +93,13 @@ pub fn start(app: AppHandle, cfg: Config, names: Vec<String>, stage: Stage, runn
                 continue;
             };
             let reporter = Reporter { app: app.clone(), name: name.clone(), file: Mutex::new(file) };
-            reporter.event("running", "", "开始", "", "");
+            reporter.event("running", -1, "", "", "");
             reporter.log(&format!("=== {name} / {stage:?} ==="));
 
+            let started = Instant::now();
             let tools = RealTools;
             let log = |l: &str| reporter.log(l);
-            let step = |s: &str| reporter.event("running", s, "", "", "");
+            let step = |i: usize| reporter.event("running", i as i64, "", "", "");
             let ctx = RunCtx {
                 machine: &cfg.machine,
                 product: &product,
@@ -114,13 +116,20 @@ pub fn start(app: AppHandle, cfg: Config, names: Vec<String>, stage: Stage, runn
                 failed += 1;
                 reporter.log(&format!("FAILED {}", r.message));
             }
-            reporter.event(
-                if r.ok { "ok" } else { "failed" },
-                "",
-                &r.message,
-                &r.staging_kept,
-                &r.installer,
-            );
+
+            history::append(RunRecord {
+                app_name: name.clone(),
+                at: now(),
+                duration_ms: started.elapsed().as_millis() as u64,
+                ok: r.ok,
+                message: r.message.clone(),
+                installer: r.installer.clone(),
+                version: r.version.clone(),
+                staging_kept: r.staging_kept.clone(),
+                stages: r.stages.clone(),
+            });
+
+            reporter.event(if r.ok { "ok" } else { "failed" }, -1, &r.message, &r.staging_kept, &r.installer);
         }
 
         running.store(false, Ordering::SeqCst);

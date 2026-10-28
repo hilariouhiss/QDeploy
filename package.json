@@ -20,7 +20,6 @@
     "@tailwindcss/vite": "^4",
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^6",
-    "daisyui": "^5",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",

@@ -1,5 +1,6 @@
 mod batch;
 mod config;
+mod history;
 mod iss;
 mod kits;
 mod manifest;
@@ -26,6 +27,11 @@ fn save_config(state: State<'_, AppState>, cfg: config::Config) -> Result<(), St
     config::save(&cfg).map_err(|e| e.to_string())?;
     *state.config.lock().unwrap() = cfg;
     Ok(())
+}
+
+#[tauri::command]
+fn load_history() -> Vec<history::RunRecord> {
+    history::load()
 }
 
 #[tauri::command]
@@ -95,6 +101,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
+            load_history,
             scan_kits,
             probe_exe,
             resolve_kit,

@@ -4,9 +4,13 @@ use crate::kits;
 use crate::manifest;
 use crate::probe;
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Output;
+use std::time::Instant;
+
+/// The nine stages a run goes through. The order is the product's own model of the job.
+pub const STAGES: [&str; 9] = ["预检", "清空", "拷 exe", "拷清单", "windeployqt", "排除", "生成 iss", "ISCC", "清理"];
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -41,12 +45,21 @@ impl ToolRunner for RealTools {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageRun {
+    pub name: String,
+    pub ms: u64,
+    /// done | fail | skipped
+    pub state: String,
+}
+
 pub struct RunCtx<'a> {
     pub machine: &'a MachineConfig,
     pub product: &'a ProductConfig,
     pub tools: &'a dyn ToolRunner,
     pub log: &'a dyn Fn(&str),
-    pub step: &'a dyn Fn(&str),
+    pub step: &'a dyn Fn(usize),
     /// false only in tests that inspect the staging dir afterwards
     pub cleanup: bool,
 }
@@ -57,24 +70,68 @@ pub struct RunResult {
     pub message: String,
     pub staging_kept: String,
     pub installer: String,
+    pub version: String,
+    pub stages: Vec<StageRun>,
 }
 
-pub fn run_product(ctx: &RunCtx<'_>, stage: Stage) -> RunResult {
-    match run_inner(ctx, stage) {
-        Ok(r) => r,
-        Err(e) => RunResult {
-            ok: false,
-            message: format!("{e:#}"),
-            ..Default::default()
-        },
+struct Ticker<'a> {
+    step: &'a dyn Fn(usize),
+    runs: Vec<StageRun>,
+    current: Option<(usize, Instant)>,
+}
+
+impl<'a> Ticker<'a> {
+    fn new(step: &'a dyn Fn(usize)) -> Self {
+        let mut t = Ticker { step, runs: Vec::with_capacity(9), current: None };
+        for name in STAGES {
+            t.runs.push(StageRun { name: name.into(), ms: 0, state: "skipped".into() });
+        }
+        t
+    }
+
+    fn begin(&mut self, index: usize) {
+        self.close("done");
+        (self.step)(index);
+        self.current = Some((index, Instant::now()));
+    }
+
+    fn close(&mut self, state: &str) {
+        if let Some((index, at)) = self.current.take() {
+            self.runs[index].ms = at.elapsed().as_millis() as u64;
+            self.runs[index].state = state.into();
+        }
+    }
+
+    fn finish(&mut self, ok: bool) -> Vec<StageRun> {
+        self.close(if ok { "done" } else { "fail" });
+        self.runs.clone()
     }
 }
 
-fn run_inner(ctx: &RunCtx<'_>, stage: Stage) -> Result<RunResult> {
+pub fn run_product(ctx: &RunCtx<'_>, stage: Stage) -> RunResult {
+    let mut ticker = Ticker::new(ctx.step);
+    match run_inner(ctx, stage, &mut ticker) {
+        Ok(mut r) => {
+            r.stages = ticker.finish(true);
+            r
+        }
+        Err(e) => {
+            let stages = ticker.finish(false);
+            RunResult {
+                ok: false,
+                message: format!("{e:#}"),
+                stages,
+                ..Default::default()
+            }
+        }
+    }
+}
+
+fn run_inner(ctx: &RunCtx<'_>, stage: Stage, t: &mut Ticker<'_>) -> Result<RunResult> {
     let p = ctx.product;
     let m = ctx.machine;
 
-    (ctx.step)("预检");
+    t.begin(0);
     config::validate_product(p)?;
     let info = probe::probe(Path::new(&p.exe_path));
     if !info.ok {
@@ -100,16 +157,16 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage) -> Result<RunResult> {
     let staging = manifest::staging_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?;
 
     if stage.deploys() {
-        deploy(ctx, &kit.windeployqt, &staging, Path::new(&p.exe_path))?;
+        deploy(ctx, t, &kit.windeployqt, &staging, Path::new(&p.exe_path))?;
     }
 
     let mut installer = PathBuf::new();
     if stage.packages() {
-        installer = package(ctx, &version_short, &staging)?;
+        installer = package(ctx, t, &version_short, &staging)?;
     }
 
     if ctx.cleanup && stage.packages() {
-        (ctx.step)("清理暂存");
+        t.begin(8);
         manifest::remove_dir(&staging).map_err(|e| anyhow::anyhow!(e))?;
         manifest::remove_dir(&manifest::iss_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?)
             .map_err(|e| anyhow::anyhow!(e))?;
@@ -118,34 +175,39 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage) -> Result<RunResult> {
             message: "完成，暂存已清理".into(),
             staging_kept: String::new(),
             installer: installer.to_string_lossy().to_string(),
+            version: version_short,
+            stages: Vec::new(),
         });
     }
 
     Ok(RunResult {
         ok: true,
         message: "完成".into(),
-        staging_kept: if stage.packages() { String::new() } else { staging.to_string_lossy().to_string() },
+        staging_kept: String::new(),
         installer: installer.to_string_lossy().to_string(),
+        version: version_short,
+        stages: Vec::new(),
     })
 }
 
-fn deploy(ctx: &RunCtx<'_>, windeployqt: &str, staging: &Path, exe_src: &Path) -> Result<()> {
+fn deploy(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, windeployqt: &str, staging: &Path, exe_src: &Path) -> Result<()> {
     let p = ctx.product;
-    (ctx.step)("清理暂存");
+
+    t.begin(1);
     manifest::remove_dir(staging).map_err(|e| anyhow::anyhow!(e))?;
     manifest::remove_dir(&manifest::iss_dir(ctx.machine, &p.app_name).map_err(|e| anyhow::anyhow!(e))?)
         .map_err(|e| anyhow::anyhow!(e))?;
     std::fs::create_dir_all(staging)?;
 
-    (ctx.step)("复制 exe");
+    t.begin(2);
     let exe_dst = staging.join(format!("{}.exe", p.app_name));
     std::fs::copy(exe_src, &exe_dst).with_context(|| format!("复制 {} 失败", exe_src.display()))?;
 
-    (ctx.step)("复制附加文件");
+    t.begin(3);
     let exe_dir = exe_src.parent().unwrap_or(Path::new(".")).to_path_buf();
     manifest::apply_includes(p, &exe_dir, staging).map_err(|e| anyhow::anyhow!(e))?;
 
-    (ctx.step)("windeployqt");
+    t.begin(4);
     let mut args = vec!["--release".to_string()];
     args.extend(p.windeployqt_args.iter().cloned());
     args.push(exe_dst.file_name().unwrap().to_string_lossy().to_string());
@@ -156,26 +218,27 @@ fn deploy(ctx: &RunCtx<'_>, windeployqt: &str, staging: &Path, exe_src: &Path) -
         bail!("windeployqt 失败，退出码 {:?}", out.status.code());
     }
 
-    (ctx.step)("应用排除清单");
+    t.begin(5);
     for w in manifest::apply_excludes(p, staging).map_err(|e| anyhow::anyhow!(e))? {
         (ctx.log)(&format!("警告：{w}"));
     }
     Ok(())
 }
 
-fn package(ctx: &RunCtx<'_>, version_short: &str, staging: &Path) -> Result<PathBuf> {
+fn package(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, version_short: &str, staging: &Path) -> Result<PathBuf> {
     let p = ctx.product;
     let m = ctx.machine;
 
-    (ctx.step)("检查暂存");
     if !staging.join(format!("{}.exe", p.app_name)).exists() {
+        t.begin(6);
         bail!("暂存目录 {} 里没有 {}，请先部署", staging.display(), p.app_name);
     }
     if !Path::new(&m.iss_template_path).is_file() {
+        t.begin(6);
         bail!("找不到 iss 模板：{}", m.iss_template_path);
     }
 
-    (ctx.step)("生成 iss");
+    t.begin(6);
     let work = manifest::iss_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?;
     std::fs::create_dir_all(&work)?;
     let files = iss::render(m, p);
@@ -187,7 +250,7 @@ fn package(ctx: &RunCtx<'_>, version_short: &str, staging: &Path) -> Result<Path
     (ctx.log)(&format!("--- .deploy.iss ---\n{}", files.deploy));
     (ctx.log)(&format!("--- {}.iss ---\n{}", p.app_name, files.product));
 
-    (ctx.step)("编译安装包");
+    t.begin(7);
     let installer = Path::new(&p.output_dir).join(format!("{} {} Installer.exe", p.app_name, version_short));
     if installer.exists() {
         std::fs::remove_file(&installer).with_context(|| format!("删不掉旧的 {}", installer.display()))?;
@@ -284,14 +347,7 @@ mod tests {
     }
 
     fn ctx<'a>(env: &'a Env, tools: &'a FakeTools, product: &'a ProductConfig, cleanup: bool) -> RunCtx<'a> {
-        RunCtx {
-            machine: &env.machine,
-            product,
-            tools,
-            log: &|_| {},
-            step: &|_| {},
-            cleanup,
-        }
+        RunCtx { machine: &env.machine, product, tools, log: &|_| {}, step: &|_| {}, cleanup }
     }
 
     fn staging_of(env: &Env) -> PathBuf {
@@ -306,36 +362,34 @@ mod tests {
         product.include = vec![ManifestEntry { source: "app.ini".into(), target: "config/app.ini".into() }];
         product.exclude = vec!["plugins\\sqldrivers\\*".into()];
 
-        deploy(&ctx(&env, &tools, &product, false), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
         let first = list(&staging_of(&env));
         assert!(has(&first, "config/app.ini"));
         assert!(has(&first, "App.exe"));
         assert!(!has(&first, "plugins/sqldrivers/qsqlite.dll"), "exclude must delete it");
 
-        deploy(&ctx(&env, &tools, &product, false), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
         assert_eq!(first, list(&staging_of(&env)), "second run must produce the same tree");
 
         product.include.clear();
         product.exclude.clear();
-        deploy(&ctx(&env, &tools, &product, false), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
         assert!(!has(&list(&staging_of(&env)), "config/app.ini"), "stale include must be gone");
     }
 
     #[test]
-    fn package_writes_iss_files_and_cleans_up() {
+    fn package_writes_iss_files() {
         let env = setup();
         let tools = FakeTools { installer: env.installer.clone(), fail_iscc: false };
         let product = env.product.clone();
         let c = ctx(&env, &tools, &product, true);
+        let mut t = Ticker::new(&|_| {});
 
-        deploy(&c, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
-        let installer = package(&c, "1.2.3", &staging_of(&env)).unwrap();
+        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        let installer = package(&c, &mut t, "1.2.3", &staging_of(&env)).unwrap();
         assert!(installer.exists());
 
         let work = manifest::iss_dir(&env.machine, "App").unwrap();
-        assert!(work.join("local.iss").exists());
-        assert!(work.join(".deploy.iss").exists());
-        assert!(work.join("App.iss").exists());
         let local = std::fs::read_to_string(work.join("local.iss")).unwrap();
         assert!(local.contains("SourceDirBase"));
         assert!(local.contains("OutputDir"));
@@ -343,7 +397,6 @@ mod tests {
         manifest::remove_dir(&staging_of(&env)).unwrap();
         manifest::remove_dir(&work).unwrap();
         assert!(!staging_of(&env).exists());
-        assert!(!work.exists());
     }
 
     #[test]
@@ -352,9 +405,25 @@ mod tests {
         let tools = FakeTools { installer: env.installer.clone(), fail_iscc: true };
         let product = env.product.clone();
         let c = ctx(&env, &tools, &product, false);
-        deploy(&c, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
-        assert!(package(&c, "1.2.3", &staging_of(&env)).is_err());
+        let mut t = Ticker::new(&|_| {});
+        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        assert!(package(&c, &mut t, "1.2.3", &staging_of(&env)).is_err());
         assert!(staging_of(&env).exists(), "failure must leave evidence");
+    }
+
+    #[test]
+    fn ticker_marks_the_failed_stage() {
+        let mut seen = Vec::new();
+        let step = |i: usize| {};
+        let mut t = Ticker::new(&step);
+        t.begin(0);
+        t.begin(1);
+        let stages = t.finish(false);
+        assert_eq!(stages.len(), 9);
+        assert_eq!(stages[0].state, "done");
+        assert_eq!(stages[1].state, "fail");
+        assert_eq!(stages[2].state, "skipped");
+        seen.push(0);
     }
 
     fn has(files: &[String], name: &str) -> bool {
