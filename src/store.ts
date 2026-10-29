@@ -65,8 +65,11 @@ export async function scanKits() {
   store.kits = await invoke<Kit[]>("scan_kits", { qtRoot: store.cfg.machine.qtRoot });
 }
 
+/** history.json is appended oldest-first, so the newest run is the last match. */
 export function lastRun(appName: string): RunRecord | null {
-  for (const r of store.history) if (r.appName === appName) return r;
+  for (let i = store.history.length - 1; i >= 0; i--) {
+    if (store.history[i].appName === appName) return store.history[i];
+  }
   return null;
 }
 
