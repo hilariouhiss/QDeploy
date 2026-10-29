@@ -37,8 +37,7 @@ pub fn probe(exe: &Path) -> ProbeInfo {
             return info;
         }
     };
-    let imports: Vec<String> = pe.imports.iter().map(|i| i.name.to_string()).collect();
-    let (qt_major, compiler) = classify(&imports);
+    let (qt_major, compiler) = classify(&import_dlls(&pe));
     info.qt_major = qt_major;
     info.compiler = compiler;
     info.version_full = file_version(exe).unwrap_or_default();
@@ -53,6 +52,11 @@ pub fn probe(exe: &Path) -> ProbeInfo {
     }
     info.ok = true;
     info
+}
+
+/// The DLL names an exe links against; `Import::name` is the symbol, `Import::dll` the library.
+fn import_dlls(pe: &goblin::pe::PE<'_>) -> Vec<String> {
+    pe.imports.iter().map(|i| i.dll.to_string()).collect()
 }
 
 fn classify(imports: &[String]) -> (u32, String) {
@@ -157,6 +161,19 @@ mod tests {
         // notepad is not a Qt app, so ok stays false; the PE header must still parse
         assert_eq!(info.arch_bits, 64);
         assert!(!info.ok);
+    }
+
+    /// Regression: classify() must see DLL names, not the symbols imported from them.
+    #[test]
+    fn import_dlls_are_library_names() {
+        let data = std::fs::read(std::env::current_exe().unwrap()).unwrap();
+        let pe = goblin::pe::PE::parse(&data).unwrap();
+        let dlls = import_dlls(&pe);
+        assert!(!dlls.is_empty());
+        assert!(
+            dlls.iter().all(|d| d.to_ascii_lowercase().ends_with(".dll")),
+            "got {dlls:?}"
+        );
     }
 
     #[test]
