@@ -31,6 +31,27 @@ const logText = computed(() => {
       : rec.value.message
     : "还没跑过。";
 });
+const copied = ref(false);
+
+async function copyLog() {
+  const text = logText.value;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // 个别 WebView 不给 Clipboard API，退回临时 textarea
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+  copied.value = true;
+  setTimeout(() => (copied.value = false), 1200);
+}
+
 const probe = ref("");
 
 async function refreshProbe() {
@@ -175,7 +196,19 @@ const history = computed(() =>
         </section>
 
         <section class="section">
-          <div class="h2">日志<span class="side">最近一次</span></div>
+          <div class="h2">
+            日志
+            <span class="side">
+              最近一次
+              <button
+                class="btn ghost"
+                style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
+                @click="copyLog"
+              >
+                {{ copied ? "已复制" : "复制" }}
+              </button>
+            </span>
+          </div>
           <pre class="log">{{ logText }}</pre>
           <div v-if="rec && !rec.ok" class="sub" style="margin-top: 12px">{{ rec.message }}</div>
         </section>
