@@ -2,7 +2,6 @@ export interface MachineConfig {
   qtRoot: string;
   isccExe: string;
   stagingRoot: string;
-  issTemplatePath: string;
 }
 
 export interface ManifestEntry {

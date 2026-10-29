@@ -32,26 +32,27 @@ QDeploy 是 Windows 桌面工具：把「Qt exe → windeployqt 部署 → 生�
 
 ## 代码地图
 
-| 位置                        | 职责                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| `src-tauri/src/lib.rs`      | Tauri command 注册、`AppState`（配置 Mutex + running/cancel 标志）                               |
-| `src-tauri/src/runner.rs`   | 九阶段流水线、`STAGES`、`Ticker` 计时、`ToolRunner` trait（生产用 `RealTools`，测试用 fake）     |
-| `src-tauri/src/batch.rs`    | 后台线程顺序跑多个产品，写日志，发 `run://product` / `run://log` / `run://done` 事件             |
-| `src-tauri/src/probe.rs`    | 用 goblin 读 PE 导入表，判定 Qt 主版本、位数、编译器                                             |
-| `src-tauri/src/kits.rs`     | 扫 `<qt_root>/<版本>/<kit>/bin/windeployqt.exe`，kit id = `<版本>-<compiler>-<arch>`             |
-| `src-tauri/src/manifest.rs` | 暂存目录、添加/移除清单、复制与通配排除、路径越界守卫                                            |
-| `src-tauri/src/iss.rs`      | 生成 `local.iss` / `.deploy.iss` / `<应用名>.iss`                                                |
-| `src-tauri/src/config.rs`   | `config.json` 读写与校验（应用名字符、36 位 GUID 等）                                            |
-| `src-tauri/src/history.rs`  | `history.json`，保留最近 300 条                                                                  |
-| `src/store.ts`              | 前端唯一 reactive store；所有 invoke 与事件订阅集中在这                                          |
-| `src/views/`                | `ProductsView`（列表）/ `ProductView`（详情）/ `HistoryView`（发版记录）/ `SettingsView`（设置） |
-| `src/components/`           | `Ledger.vue` 九格阶段条、`ManifestEditor.vue` 文件清单                                           |
+| 位置                        | 职责                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/src/lib.rs`      | Tauri command 注册、`AppState`（配置 Mutex + running/cancel 标志）                                                        |
+| `src-tauri/src/runner.rs`   | 九阶段流水线、`STAGES`、`Ticker` 计时、`ToolRunner` trait（生产用 `RealTools`，测试用 fake）                              |
+| `src-tauri/src/batch.rs`    | 后台线程顺序跑多个产品，写日志，发 `run://product` / `run://log` / `run://done` 事件                                      |
+| `src-tauri/src/probe.rs`    | 用 goblin 读 PE 导入表，判定 Qt 主版本、位数、编译器                                                                      |
+| `src-tauri/src/kits.rs`     | 扫 `<qt_root>/<版本>/<kit>/bin/windeployqt.exe`，kit id = `<版本>-<compiler>-<arch>`                                      |
+| `src-tauri/src/manifest.rs` | 暂存目录、添加/移除清单、复制与通配排除、路径越界守卫                                                                     |
+| `src-tauri/src/iss.rs`      | 生成 `<应用名>.iss`（5 个 define + include 模板）；模板 `src-tauri/templates/common_setup.iss` 用 `include_str!` 编进 exe |
+| `src-tauri/src/config.rs`   | `config.json` 读写与校验（应用名字符、36 位 GUID 等）                                                                     |
+| `src-tauri/src/history.rs`  | `history.json`，保留最近 300 条                                                                                           |
+| `src/store.ts`              | 前端唯一 reactive store；所有 invoke 与事件订阅集中在这                                                                   |
+| `src/views/`                | `ProductsView`（列表）/ `ProductView`（详情）/ `HistoryView`（发版记录）/ `SettingsView`（设置）                          |
+| `src/components/`           | `Ledger.vue` 九格阶段条、`ManifestEditor.vue` 文件清单                                                                    |
 
 分层规则：
 
 - 文件与进程操作只在 Rust 侧；前端不拼路径，一律走 command。加命令要同时改 `lib.rs` 的 `generate_handler!` 和前端 `invoke`（参数是 camelCase）。
-- 九阶段是产品模型：改流程要同时改 `runner::STAGES`、`src/types.ts::STAGE_NAMES`，并核对 README 的「模板契约」。
+- 九阶段是产品模型：改流程要同时改 `runner::STAGES`、`src/types.ts::STAGE_NAMES`，并核对 README 的「内置模板」。
 - 配置结构在 `config.rs` 与 `src/types.ts` 一一对应，都靠 `serde(rename_all = "camelCase")` 和 `#[serde(default)]`；改字段两边一起改，并保证旧的 `config.json` 仍能读。
+- 模板契约：`iss.rs::render` 给出的 5 个 define 与模板里的 `{#...}` 一一对应，改一边就同时改模板、`iss.rs` 和 README；`iss` 的单测会挡。
 
 ## 约定
 

@@ -1,45 +1,30 @@
-use crate::config::{MachineConfig, ProductConfig};
+use crate::config::ProductConfig;
+use std::path::Path;
 
-pub struct IssFiles {
-    pub local: String,
-    pub deploy: String,
-    pub product: String,
-}
+/// The installer template ships inside the exe: no file to point at, nothing to misconfigure.
+pub const TEMPLATE: &str = include_str!("../templates/common_setup.iss");
 
 fn q(s: &str) -> String {
     format!("\"{}\"", s)
 }
 
-/// The four files your common_setup.iss expects: it is ISPP and owns all the real logic.
-pub fn render(machine: &MachineConfig, p: &ProductConfig) -> IssFiles {
-    let local = format!(
-        "#define SourceDirBase {}\n#define OutputDir {}\n",
-        q(&machine.staging_root),
+/// The one script QDeploy hands to ISPP: every value the template needs, worked out elsewhere.
+pub fn render(p: &ProductConfig, version: &str, source_dir: &Path) -> String {
+    let mut script = format!(
+        "#define AppName {}\n#define AppGuid {}\n#define AppVersion {}\n#define SourceDir {}\n#define OutputDir {}\n",
+        q(&p.app_name),
+        q(&p.app_id),
+        q(version),
+        q(&source_dir.to_string_lossy()),
         q(&p.output_dir)
     );
-    let deploy = "#define VC 0\n".to_string();
-    let mut product = format!(
-        "#define AppName {}\n#define AppGuid {}\n",
-        q(&p.app_name),
-        q(&p.app_id)
-    );
-    if !p.version_override.trim().is_empty() {
-        product.push_str(&format!("#define AppVersionFull {}\n", q(p.version_override.trim())));
-    }
-    product.push_str("#include \"common_setup.iss\"\n");
-    IssFiles { local, deploy, product }
+    script.push_str("#include \"common_setup.iss\"\n");
+    script
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn machine() -> MachineConfig {
-        MachineConfig {
-            staging_root: "D:\\QDeploy\\staging".into(),
-            ..Default::default()
-        }
-    }
 
     fn product() -> ProductConfig {
         ProductConfig {
@@ -51,29 +36,38 @@ mod tests {
     }
 
     #[test]
-    fn local_iss_has_paths() {
-        let f = render(&machine(), &product());
+    fn script_supplies_every_define() {
+        let script = render(&product(), "1.2.3", Path::new("D:\\QDeploy\\staging\\AlphaTool"));
         assert_eq!(
-            f.local,
-            "#define SourceDirBase \"D:\\QDeploy\\staging\"\n#define OutputDir \"D:\\QDeploy\\out\"\n"
+            script,
+            "#define AppName \"AlphaTool\"\n\
+             #define AppGuid \"9D5A0C45-3B1E-4B7F-9C2A-8E6D1F0A2B33\"\n\
+             #define AppVersion \"1.2.3\"\n\
+             #define SourceDir \"D:\\QDeploy\\staging\\AlphaTool\"\n\
+             #define OutputDir \"D:\\QDeploy\\out\"\n\
+             #include \"common_setup.iss\"\n"
         );
-        assert_eq!(f.deploy, "#define VC 0\n");
     }
 
+    /// The template must not go back to guessing values or including generated neighbours.
     #[test]
-    fn product_iss_is_three_lines_without_override() {
-        let f = render(&machine(), &product());
-        assert!(f.product.contains("#define AppName \"AlphaTool\""));
-        assert!(f.product.contains("#define AppGuid \"9D5A0C45-3B1E-4B7F-9C2A-8E6D1F0A2B33\""));
-        assert!(!f.product.contains("AppVersionFull"));
-        assert!(f.product.ends_with("#include \"common_setup.iss\"\n"));
+    fn template_uses_only_generated_defines() {
+        for needle in ["{#AppName}", "{#AppGuid}", "{#AppVersion}", "{#SourceDir}", "{#OutputDir}"] {
+            assert!(TEMPLATE.contains(needle), "模板缺 {needle}");
+        }
+        for gone in ["local.iss", ".deploy.iss", "GetVersionNumbersString"] {
+            assert!(!TEMPLATE.contains(gone), "模板还在用 {gone}");
+        }
     }
 
+    /// ISPP emits the GUID bare and swallows one closing brace: three opens + two closes is the
+    /// only spelling that reaches Inno as `AppId={{GUID}`. Two opens makes ISCC say the constant
+    /// is unterminated, so this line must not be "simplified".
     #[test]
-    fn override_is_emitted_when_set() {
-        let mut p = product();
-        p.version_override = " 2.3.4.5 ".into();
-        let f = render(&machine(), &p);
-        assert!(f.product.contains("#define AppVersionFull \"2.3.4.5\""));
+    fn appid_keeps_the_escaped_braces() {
+        assert!(
+            TEMPLATE.lines().any(|l| l == "AppId={{{#AppGuid}}"),
+            "AppId 的花括号转义被改坏了：三个 {{ 两个 }} 才是对的"
+        );
     }
 }

@@ -21,7 +21,7 @@ export interface Live {
 export const store = reactive({
   cfg: {
     schemaVersion: 1,
-    machine: { qtRoot: "", isccExe: "", stagingRoot: "", issTemplatePath: "" },
+    machine: { qtRoot: "", isccExe: "", stagingRoot: "" },
     products: [],
   } as Config,
   history: [] as RunRecord[],

@@ -27,10 +27,6 @@ async function toggleMax() {
 }
 
 const stagingTail = computed(() => store.cfg.machine.stagingRoot || "未设置暂存根");
-const templateName = computed(() => {
-  const p = store.cfg.machine.issTemplatePath;
-  return p ? p.split(/[\\/]/).pop() : "未设置 iss 模板";
-});
 const failed = computed(() => store.history.filter((r) => !r.ok).length);
 </script>
 
@@ -116,8 +112,7 @@ const failed = computed(() => store.history.filter((r) => !r.ok).length);
       </button>
       <div class="side-foot">
         <b>本机</b>
-        {{ stagingTail }}<br />
-        {{ templateName }}
+        {{ stagingTail }}
         <div v-if="failed" style="color: var(--negative); margin-top: 6px">
           {{ failed }} 次失败记录
         </div>

@@ -20,7 +20,7 @@ fn too_shallow(root: &Path) -> bool {
     root.components().filter(|c| matches!(c, Component::Normal(_))).count() < 2
 }
 
-/// staging dir == <stagingRoot>\<AppName>, because the Inno template builds SourceDir that way.
+/// staging dir == <stagingRoot>\<AppName>; the generated iss hands it to the template as SourceDir.
 pub fn staging_dir(machine: &MachineConfig, app_name: &str) -> Result<PathBuf, String> {
     validate_app_name(app_name).map_err(|e| e.to_string())?;
     let root = normalize(Path::new(&machine.staging_root));

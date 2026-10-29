@@ -280,22 +280,13 @@ fn package(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, version_short: &str, staging: &
         t.begin(6);
         bail!("暂存目录 {} 里没有 {}，请先部署", staging.display(), p.app_name);
     }
-    if !Path::new(&m.iss_template_path).is_file() {
-        t.begin(6);
-        bail!("找不到 iss 模板：{}", m.iss_template_path);
-    }
-
     t.begin(6);
     let work = manifest::iss_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?;
     std::fs::create_dir_all(&work)?;
-    let files = iss::render(m, p);
-    std::fs::write(work.join("local.iss"), &files.local)?;
-    std::fs::write(work.join(".deploy.iss"), &files.deploy)?;
-    std::fs::write(work.join(format!("{}.iss", p.app_name)), &files.product)?;
-    std::fs::copy(&m.iss_template_path, work.join("common_setup.iss"))?;
-    (ctx.log)(&format!("--- local.iss ---\n{}", files.local));
-    (ctx.log)(&format!("--- .deploy.iss ---\n{}", files.deploy));
-    (ctx.log)(&format!("--- {}.iss ---\n{}", p.app_name, files.product));
+    let script = iss::render(p, version_short, staging);
+    std::fs::write(work.join("common_setup.iss"), iss::TEMPLATE)?;
+    std::fs::write(work.join(format!("{}.iss", p.app_name)), &script)?;
+    (ctx.log)(&format!("--- {}.iss ---\n{}", p.app_name, script));
 
     t.begin(7);
     let installer = Path::new(&p.output_dir).join(format!("{} {} Installer.exe", p.app_name, version_short));
@@ -373,7 +364,6 @@ mod tests {
     fn setup() -> Env {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
-        std::fs::write(root.join("common_setup.iss"), b"; template").unwrap();
         let build = root.join("build");
         std::fs::create_dir_all(&build).unwrap();
         std::fs::write(build.join("App.exe"), b"MZ").unwrap();
@@ -385,7 +375,6 @@ mod tests {
         let machine = MachineConfig {
             qt_root: root.join("qt").to_string_lossy().to_string(),
             staging_root: root.join("staging").to_string_lossy().to_string(),
-            iss_template_path: root.join("common_setup.iss").to_string_lossy().to_string(),
             iscc_exe: root.join("ISCC.exe").to_string_lossy().to_string(),
             ..Default::default()
         };
@@ -464,13 +453,36 @@ mod tests {
         assert!(installer.exists());
 
         let work = manifest::iss_dir(&env.machine, "App").unwrap();
-        let local = std::fs::read_to_string(work.join("local.iss")).unwrap();
-        assert!(local.contains("SourceDirBase"));
-        assert!(local.contains("OutputDir"));
+        let script = std::fs::read_to_string(work.join("App.iss")).unwrap();
+        assert!(script.contains("#define AppName \"App\""));
+        assert!(script.contains("#define AppVersion \"1.2.3\""));
+        assert!(script.contains(&format!("#define SourceDir \"{}\"", staging_of(&env).display())));
+        assert!(script.ends_with("#include \"common_setup.iss\"\n"));
+        assert!(!work.join("local.iss").exists(), "local.iss is gone from the contract");
+        assert!(!work.join(".deploy.iss").exists(), ".deploy.iss is gone from the contract");
+
+        assert_eq!(std::fs::read_to_string(work.join("common_setup.iss")).unwrap(), iss::TEMPLATE);
 
         manifest::remove_dir(&staging_of(&env)).unwrap();
         manifest::remove_dir(&work).unwrap();
         assert!(!staging_of(&env).exists());
+    }
+
+    /// The installer name QDeploy looks for and AppVersion in the script must come from one value.
+    #[test]
+    fn version_override_reaches_script_and_filename() {
+        let env = setup();
+        let mut product = env.product.clone();
+        product.version_override = " 2.3.4.5 ".into();
+        let installer = env.installer.parent().unwrap().join("App 2.3.4 Installer.exe");
+        let tools = FakeTools { installer: installer.clone(), fail_iscc: false };
+        let r = run_product(&ctx(&env, &tools, &product, false), Stage::Both);
+        assert!(r.ok, "{}", r.message);
+        assert_eq!(Path::new(&r.installer), installer);
+
+        let work = manifest::iss_dir(&env.machine, "App").unwrap();
+        let script = std::fs::read_to_string(work.join("App.iss")).unwrap();
+        assert!(script.contains("#define AppVersion \"2.3.4\""), "{script}");
     }
 
     #[test]

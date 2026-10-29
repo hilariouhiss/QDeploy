@@ -24,7 +24,7 @@
 
 单一 JSON：`%APPDATA%\QDeploy\config.json`，分两块：
 
-- `machine`：这台机器的路径（Qt 安装根、ISCC.exe、暂存根、iss 模板），换电脑只改这里；
+- `machine`：这台机器的路径（Qt 安装根、ISCC.exe、暂存根），换电脑只改这里；
 - `products`：每个产品一条（应用名、GUID、exe、套件、输出目录、增删清单）。
 
 运行历史：`%APPDATA%\QDeploy\history.json`，每次运行一条，含九个阶段的耗时与状态，界面的「发版记录」和列表里的阶段条都读它。
@@ -32,41 +32,44 @@
 
 ## 一次执行
 
-1. 预检：exe 能探、套件能解析、版本可得、模板在、路径通过安全守卫
+1. 预检：exe 能探、套件能解析、版本可得、路径通过安全守卫
 2. 清空 `<暂存根>\<应用名>\` 与 `<暂存根>\.iss\<应用名>\`
 3. 复制 exe、复制「添加文件」清单
 4. 在暂存目录里跑 `windeployqt <额外参数> <应用名>.exe`（按 exe 自动识别 debug/release）
 5. 按「移除文件」通配删掉多余文件
-6. 生成 `local.iss` / `.deploy.iss` / `<应用名>.iss`，拷贝 `common_setup.iss`，调 ISCC
+6. 生成 `<应用名>.iss`、写出内置的 `common_setup.iss`，调 ISCC
 7. 成功（且本次包含打包）后删掉暂存与工作目录；失败或仅部署则保留，界面会标出路径
 
-## 模板契约
+## 内置模板
 
-工具只用你模板的这几点，其余随便改：
+安装脚本模板 `common_setup.iss` 编在 QDeploy 里（`src-tauri/templates/common_setup.iss`，`include_str!` 进 exe），界面里没有、也不接受外部路径。每次打包时 QDeploy 在工作目录里写两份文件再调 ISCC：`<应用名>.iss`（生成的 5 行 `#define` + 一行 include）和 `common_setup.iss`（模板原文，只为了给 ISPP 一个可 `#include` 的文件）。要改安装行为就改仓库里这个模板再重新构建 QDeploy。
 
-- 文件名 `common_setup.iss`，且 `#include "local.iss"` / `#include ".deploy.iss"` 的名字不变；
-- 读 `AppName`、`AppGuid`，可选 `AppVersionFull`；
-- `SourceDirBase\AppName` 下有 exe 与全部要打包的文件；
-- `SourceDirBase` 与 `OutputDir` 由 `local.iss` 提供；
-- ISCC 的产物必须叫 `<应用名> <版本号去掉最后一段> Installer.exe` 并落在 `OutputDir` 下（工具靠这个文件名判断成功）。
+模板只认 5 个 `#define`，值全部由 QDeploy 算好，模板不再自己推导默认值：
 
-生成的文件长这样：
+| define       | 值                                                                  |
+| ------------ | ------------------------------------------------------------------- |
+| `AppName`    | 应用名（= exe 名去掉 `.exe` = 暂存目录名）                          |
+| `AppGuid`    | 36 位 GUID，不带花括号                                              |
+| `AppVersion` | 短版本号（完整版本号去掉最后一段）；覆盖版本也按同一规则            |
+| `SourceDir`  | 暂存目录绝对路径 `<暂存根>\<应用名>`，里面有 exe 与全部要打包的文件 |
+| `OutputDir`  | 安装包输出目录绝对路径                                              |
 
-    # local.iss
-    #define SourceDirBase "<暂存根>"
-    #define OutputDir "<产品输出目录>"
+ISCC 的产物必须叫 `<应用名> <短版本号> Installer.exe` 并落在 `OutputDir` 下，工具靠这个文件名判断本次是否成功。
 
-    # .deploy.iss
-    #define VC 0
+生成的脚本长这样：
 
-    # <应用名>.iss
     #define AppName "<应用名>"
     #define AppGuid "<GUID，不带花括号>"
+    #define AppVersion "<短版本号>"
+    #define SourceDir "<暂存根>\<应用名>"
+    #define OutputDir "<产品输出目录>"
     #include "common_setup.iss"
+
+模板本身只处理 Inno 的安装行为（安装/卸载、桌面图标、中文界面、x64），不处理 VC 运行库：MinGW 运行库由部署阶段拷进暂存目录，MSVC 工具链不支持。无 BOM 的 UTF-8 脚本与 `x64compatible` 都要求 Inno Setup 6.3+。
 
 ## 边界
 
 - 只做 64 位；MSVC 工具链未支持（界面也不提供）。
 - exe 文件名必须等于 `<应用名>.exe`，因为模板按 AppName 拼 exe 路径。
-- 版本号由模板从 exe 版本资源读；读不到需在产品的「版本覆盖」里手填。
+- 版本号由 QDeploy 从 exe 版本资源读；读不到需在产品的「版本覆盖」里手填。
 - 暂存根路径太浅（如 `C:\`）会被拒绝删除，这是故意的。

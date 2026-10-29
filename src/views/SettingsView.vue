@@ -10,12 +10,9 @@ async function browseDir(field: "qtRoot" | "stagingRoot") {
   if (typeof d === "string") store.cfg.machine[field] = d;
 }
 
-async function browseFile(field: "isccExe" | "issTemplatePath", exts: string[]) {
-  const f = await open({
-    multiple: false,
-    filters: [{ name: exts[0].toUpperCase(), extensions: exts }],
-  });
-  if (typeof f === "string") store.cfg.machine[field] = f;
+async function browseIscc() {
+  const f = await open({ multiple: false, filters: [{ name: "EXE", extensions: ["exe"] }] });
+  if (typeof f === "string") store.cfg.machine.isccExe = f;
 }
 
 async function doScan() {
@@ -55,7 +52,7 @@ async function doScan() {
         <span>ISCC.exe</span>
         <div class="with-btn">
           <input v-model="store.cfg.machine.isccExe" class="input mono" />
-          <button class="btn" @click="browseFile('isccExe', ['exe'])">浏览</button>
+          <button class="btn" @click="browseIscc">浏览</button>
         </div>
       </label>
 
@@ -64,14 +61,6 @@ async function doScan() {
         <div class="with-btn">
           <input v-model="store.cfg.machine.stagingRoot" class="input mono" />
           <button class="btn" @click="browseDir('stagingRoot')">浏览</button>
-        </div>
-      </label>
-
-      <label class="field" style="margin-top: 16px">
-        <span>iss 模板（common_setup.iss）</span>
-        <div class="with-btn">
-          <input v-model="store.cfg.machine.issTemplatePath" class="input mono" />
-          <button class="btn" @click="browseFile('issTemplatePath', ['iss'])">浏览</button>
         </div>
       </label>
 

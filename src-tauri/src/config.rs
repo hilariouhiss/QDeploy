@@ -8,7 +8,6 @@ pub struct MachineConfig {
     pub qt_root: String,
     pub iscc_exe: String,
     pub staging_root: String,
-    pub iss_template_path: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
