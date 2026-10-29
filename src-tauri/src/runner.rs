@@ -5,6 +5,7 @@ use crate::manifest;
 use crate::probe;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Instant;
@@ -39,6 +40,8 @@ impl ToolRunner for RealTools {
     fn run(&self, program: &Path, args: &[String], cwd: &Path) -> Result<Output> {
         let mut cmd = std::process::Command::new(program);
         cmd.args(args).current_dir(cwd);
+        // The GUI has no console; without this, console children pop their own window.
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         // windeployqt asks qmake for its Qt paths through PATH. Put the tool's own
         // folder first so another Qt on PATH cannot redirect it.
         if let Some(dir) = program.parent().filter(|dir| !dir.as_os_str().is_empty()) {
