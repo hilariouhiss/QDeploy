@@ -58,7 +58,7 @@ async function addFile(dir: boolean) {
       </button>
     </div>
 
-    <table class="mtable" style="margin-top: 18px">
+    <table class="mtable" style="margin-top: 12px">
       <thead>
         <tr>
           <th>移除（相对暂存目录的通配）</th>

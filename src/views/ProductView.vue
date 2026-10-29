@@ -106,6 +106,24 @@ const argsText = computed({
   },
 });
 
+const COMMON_ARGS: [string, string][] = [
+  ["--no-translations", "不打包翻译"],
+  ["--no-opengl-sw", "不打包 OpenGL"],
+  ["--no-system-d3d-compiler", "不打包 D3D"],
+  ["--no-webkit2", "不打包 WebKit2"],
+  ["--no-quick-import", "不打包 Quick"],
+];
+
+const hasArg = (a: string) => p.value?.windeployqtArgs.includes(a) ?? false;
+
+function toggleArg(a: string) {
+  const list = p.value?.windeployqtArgs;
+  if (!list) return;
+  const i = list.indexOf(a);
+  if (i >= 0) list.splice(i, 1);
+  else list.push(a);
+}
+
 const kitLabel = computed(() =>
   p.value ? (p.value.kit === "auto" ? "自动识别" : p.value.kit) : "",
 );
@@ -120,7 +138,7 @@ const history = computed(() =>
 <template>
   <div v-if="!p" class="empty">左侧选一个产品。</div>
 
-  <div v-else>
+  <div v-else class="detailpage">
     <div class="crumb">
       <button @click="store.detail = false">产品</button>
       <span>/</span>
@@ -142,6 +160,7 @@ const history = computed(() =>
         </div>
       </div>
       <div class="actions">
+        <button class="btn" @click="saveConfig">保存</button>
         <template v-if="running || store.running">
           <button class="btn" @click="cancelRun">停止后续</button>
         </template>
@@ -195,7 +214,7 @@ const history = computed(() =>
           </div>
         </section>
 
-        <section class="section">
+        <section class="section logsec">
           <div class="h2">
             日志
             <span class="side">
@@ -252,14 +271,14 @@ const history = computed(() =>
               ><span>GUID（不带花括号）</span><input v-model="p.appId" class="input mono"
             /></label>
           </div>
-          <label class="field" style="margin-top: 14px">
+          <label class="field" style="margin-top: 10px">
             <span>exe 路径</span>
             <div class="with-btn">
               <input v-model="p.exePath" class="input mono" />
               <button class="btn" @click="browseExe">浏览</button>
             </div>
           </label>
-          <div class="row2" style="margin-top: 14px">
+          <div class="row2" style="margin-top: 10px">
             <label class="field">
               <span>工具链</span>
               <select v-model="p.kit" class="select">
@@ -272,26 +291,35 @@ const history = computed(() =>
               ><input v-model="p.versionOverride" class="input mono"
             /></label>
           </div>
-          <label class="field" style="margin-top: 14px">
+          <label class="field" style="margin-top: 10px">
             <span>安装包输出目录</span>
             <div class="with-btn">
               <input v-model="p.outputDir" class="input mono" />
               <button class="btn" @click="browseOut">浏览</button>
             </div>
           </label>
-          <label class="field" style="margin-top: 14px">
+          <label class="field" style="margin-top: 10px">
             <span>windeployqt 额外参数（一行一个）</span>
+            <div class="chips">
+              <button
+                v-for="[a, name] in COMMON_ARGS"
+                :key="a"
+                class="chip"
+                :class="{ on: hasArg(a) }"
+                :title="a"
+                @click="toggleArg(a)"
+              >
+                {{ name }}
+              </button>
+            </div>
             <textarea
               v-model="argsText"
               class="input mono"
-              rows="3"
+              rows="2"
               placeholder="--no-translations"
               style="height: auto; padding: 7px 10px; resize: vertical"
             ></textarea>
           </label>
-          <div style="margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end">
-            <button class="btn" @click="saveConfig">保存</button>
-          </div>
         </section>
 
         <section class="section">
