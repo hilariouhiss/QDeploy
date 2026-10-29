@@ -474,6 +474,14 @@ h1 {
 .st.done .bar {
   background: #c2c8cb;
 }
+/* 运行中的那一格必须是整条里最显眼的，default raised 灰几乎看不见 */
+.st.run .bar {
+  background: var(--accent);
+}
+.st.run .nm {
+  color: var(--accent);
+  font-weight: 500;
+}
 .st.fail .bar {
   background: var(--negative);
 }
