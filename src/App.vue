@@ -26,6 +26,12 @@ async function toggleMax() {
   maximized.value = await win.isMaximized();
 }
 
+/** Sidebar switch must also leave the product detail, or "产品" looks dead there. */
+function go(page: "products" | "history" | "settings") {
+  store.detail = false;
+  store.page = page;
+}
+
 const stagingTail = computed(() => store.cfg.machine.stagingRoot || "未设置暂存根");
 const failed = computed(() => store.history.filter((r) => !r.ok).length);
 </script>
@@ -89,25 +95,13 @@ const failed = computed(() => store.history.filter((r) => !r.ok).length);
     </header>
 
     <nav class="side">
-      <button
-        class="navitem"
-        :class="{ on: store.page === 'products' }"
-        @click="store.page = 'products'"
-      >
+      <button class="navitem" :class="{ on: store.page === 'products' }" @click="go('products')">
         产品<span class="count">{{ store.cfg.products.length }}</span>
       </button>
-      <button
-        class="navitem"
-        :class="{ on: store.page === 'history' }"
-        @click="store.page = 'history'"
-      >
+      <button class="navitem" :class="{ on: store.page === 'history' }" @click="go('history')">
         发版记录<span class="count">{{ store.history.length }}</span>
       </button>
-      <button
-        class="navitem"
-        :class="{ on: store.page === 'settings' }"
-        @click="store.page = 'settings'"
-      >
+      <button class="navitem" :class="{ on: store.page === 'settings' }" @click="go('settings')">
         设置
       </button>
       <div class="side-foot">
