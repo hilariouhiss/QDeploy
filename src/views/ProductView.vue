@@ -11,6 +11,7 @@ import {
   formatMs,
   saveConfig,
   startRun,
+  cancelRun,
 } from "../store";
 import type { ProbeInfo } from "../types";
 import Ledger from "../components/Ledger.vue";
@@ -74,9 +75,13 @@ async function browseOut() {
 }
 
 const argsText = computed({
-  get: () => (p.value ? p.value.windeployqtArgs.join(" ") : ""),
+  get: () => (p.value ? p.value.windeployqtArgs.join("\n") : ""),
   set: (v: string) => {
-    if (p.value) p.value.windeployqtArgs = v.split(/\s+/).filter(Boolean);
+    if (p.value)
+      p.value.windeployqtArgs = v
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
   },
 });
 
@@ -84,7 +89,10 @@ const kitLabel = computed(() =>
   p.value ? (p.value.kit === "auto" ? "自动识别" : p.value.kit) : "",
 );
 const history = computed(() =>
-  store.history.filter((r) => r.appName === p.value?.appName).slice(0, 5),
+  store.history
+    .filter((r) => r.appName === p.value?.appName)
+    .slice(-5)
+    .reverse(),
 );
 </script>
 
@@ -113,8 +121,8 @@ const history = computed(() =>
         </div>
       </div>
       <div class="actions">
-        <template v-if="running">
-          <button class="btn" @click="store.running">运行中…</button>
+        <template v-if="running || store.running">
+          <button class="btn" @click="cancelRun">停止后续</button>
         </template>
         <template v-else>
           <button class="btn ghost" @click="startRun('deploy', [p.appName])">仅部署</button>
@@ -123,6 +131,8 @@ const history = computed(() =>
         </template>
       </div>
     </div>
+
+    <div v-if="store.message" class="banner" style="margin-top: 12px">{{ store.message }}</div>
 
     <div class="detail">
       <div>
@@ -158,6 +168,9 @@ const history = computed(() =>
                 }}
               </div>
             </div>
+          </div>
+          <div v-if="rec && !running && rec.stagingKept" class="sub" style="margin-top: 10px">
+            暂存保留在 <span class="mono">{{ rec.stagingKept }}</span>
           </div>
         </section>
 
@@ -234,8 +247,14 @@ const history = computed(() =>
             </div>
           </label>
           <label class="field" style="margin-top: 14px">
-            <span>windeployqt 额外参数</span>
-            <input v-model="argsText" class="input mono" placeholder="--no-translations" />
+            <span>windeployqt 额外参数（一行一个）</span>
+            <textarea
+              v-model="argsText"
+              class="input mono"
+              rows="3"
+              placeholder="--no-translations"
+              style="height: auto; padding: 7px 10px; resize: vertical"
+            ></textarea>
           </label>
           <div style="margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end">
             <button class="btn" @click="saveConfig">保存</button>

@@ -54,12 +54,16 @@ pub fn scan(qt_root: &str) -> Vec<Kit> {
             });
         }
     }
-    out.sort_by(|a, b| b.qt_version.cmp(&a.qt_version));
+    out.sort_by(|a, b| version_key(&b.qt_version).cmp(&version_key(&a.qt_version)));
     out
 }
 
 pub fn major(version: &str) -> u32 {
     version.split('.').next().and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+
+fn version_key(version: &str) -> Vec<u64> {
+    version.split('.').map(|s| s.parse().unwrap_or(0)).collect()
 }
 
 /// Picks the single kit matching the exe, or the forced one.
@@ -116,6 +120,16 @@ mod tests {
     #[test]
     fn empty_root() {
         assert!(scan("Z:\\no\\such\\dir").is_empty());
+    }
+
+    #[test]
+    fn sorts_versions_numerically() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        touch(&root.join("6.9.0/mingw81_64/bin/windeployqt.exe"));
+        touch(&root.join("6.12.0/mingw81_64/bin/windeployqt.exe"));
+        let kits = scan(root.to_str().unwrap());
+        assert_eq!(kits[0].id, "6.12.0-mingw-64");
     }
 
     #[test]

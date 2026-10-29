@@ -38,7 +38,14 @@ pub fn append(record: RunRecord) {
     if let Some(dir) = p.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let _ = std::fs::write(&p, serde_json::to_string(&all).unwrap_or_default());
+    let Ok(text) = serde_json::to_string(&all) else {
+        return;
+    };
+    // Write then rename so a concurrent read never sees a truncated file.
+    let tmp = p.with_extension("json.tmp");
+    if std::fs::write(&tmp, text).is_ok() {
+        let _ = std::fs::rename(&tmp, &p);
+    }
 }
 
 #[cfg(test)]

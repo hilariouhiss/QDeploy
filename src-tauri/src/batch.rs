@@ -31,6 +31,29 @@ struct LogEvent {
 struct DoneEvent {
     ok: usize,
     failed: usize,
+    cancelled: usize,
+}
+
+fn emit_product(
+    app: &AppHandle,
+    name: &str,
+    status: &'static str,
+    stage: i64,
+    message: &str,
+    staging_kept: &str,
+    installer: &str,
+) {
+    let _ = app.emit(
+        "run://product",
+        ProductEvent {
+            app_name: name.to_string(),
+            status,
+            stage,
+            message: message.to_string(),
+            staging_kept: staging_kept.to_string(),
+            installer: installer.to_string(),
+        },
+    );
 }
 
 struct Reporter {
@@ -48,17 +71,7 @@ impl Reporter {
     }
 
     fn event(&self, status: &'static str, stage: i64, message: &str, staging_kept: &str, installer: &str) {
-        let _ = self.app.emit(
-            "run://product",
-            ProductEvent {
-                app_name: self.name.clone(),
-                status,
-                stage,
-                message: message.to_string(),
-                staging_kept: staging_kept.to_string(),
-                installer: installer.to_string(),
-            },
-        );
+        emit_product(&self.app, &self.name, status, stage, message, staging_kept, installer);
     }
 }
 
@@ -78,25 +91,29 @@ pub fn start(app: AppHandle, cfg: Config, names: Vec<String>, stage: Stage, runn
         let _ = std::fs::create_dir_all(&dir);
         let mut ok = 0usize;
         let mut failed = 0usize;
+        let mut started = 0usize;
 
-        for name in names {
+        for (i, name) in names.iter().enumerate() {
             if cancel.load(Ordering::SeqCst) {
                 break;
             }
-            let Some(product) = cfg.products.iter().find(|p| p.app_name == name).cloned() else {
+            started = i + 1;
+            let Some(product) = cfg.products.iter().find(|p| p.app_name == *name).cloned() else {
                 failed += 1;
                 let _ = app.emit("run://log", LogEvent { app_name: name.clone(), line: "配置里没有这个产品".into() });
+                emit_product(&app, name, "failed", -1, "配置里没有这个产品", "", "");
                 continue;
             };
             let Ok(file) = std::fs::File::create(dir.join(format!("{name}.log"))) else {
                 failed += 1;
+                emit_product(&app, name, "failed", -1, "无法创建日志文件", "", "");
                 continue;
             };
             let reporter = Reporter { app: app.clone(), name: name.clone(), file: Mutex::new(file) };
             reporter.event("running", -1, "", "", "");
             reporter.log(&format!("=== {name} / {stage:?} ==="));
 
-            let started = Instant::now();
+            let run_started = Instant::now();
             let tools = RealTools;
             let log = |l: &str| reporter.log(l);
             let step = |i: usize| reporter.event("running", i as i64, "", "", "");
@@ -104,6 +121,7 @@ pub fn start(app: AppHandle, cfg: Config, names: Vec<String>, stage: Stage, runn
                 machine: &cfg.machine,
                 product: &product,
                 tools: &tools,
+                probe: crate::probe::probe,
                 log: &log,
                 step: &step,
                 cleanup: true,
@@ -120,7 +138,7 @@ pub fn start(app: AppHandle, cfg: Config, names: Vec<String>, stage: Stage, runn
             history::append(RunRecord {
                 app_name: name.clone(),
                 at: now(),
-                duration_ms: started.elapsed().as_millis() as u64,
+                duration_ms: run_started.elapsed().as_millis() as u64,
                 ok: r.ok,
                 message: r.message.clone(),
                 installer: r.installer.clone(),
@@ -132,7 +150,15 @@ pub fn start(app: AppHandle, cfg: Config, names: Vec<String>, stage: Stage, runn
             reporter.event(if r.ok { "ok" } else { "failed" }, -1, &r.message, &r.staging_kept, &r.installer);
         }
 
+        let cancelled = if cancel.load(Ordering::SeqCst) {
+            for name in &names[started..] {
+                emit_product(&app, name, "failed", -1, "已取消，未执行", "", "");
+            }
+            names.len().saturating_sub(started)
+        } else {
+            0
+        };
         running.store(false, Ordering::SeqCst);
-        let _ = app.emit("run://done", DoneEvent { ok, failed });
+        let _ = app.emit("run://done", DoneEvent { ok, failed, cancelled });
     });
 }

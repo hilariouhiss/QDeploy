@@ -34,7 +34,7 @@ const finding = computed(() => {
     const r = lastRun(p.appName);
     if (r && !r.ok) {
       const stage = r.stages.find((s) => s.state === "fail");
-      return { name: p.appName, when: formatWhen(r.at), stage: stage ? stage.name : "" };
+      return { name: p.appName, stage: stage ? stage.name : "" };
     }
   }
   return null;
@@ -93,16 +93,19 @@ const run = (s: "deploy" | "package" | "both") => startRun(s);
       <h1>产品</h1>
       <div class="sub">
         {{ store.cfg.products.length }} 个产品 · {{ checkedNames().length }} 个勾选待发 ·
-        <template v-if="finding">
-          <span class="neg">{{ finding.name }} {{ finding.when }} 失败（{{ finding.stage }}）</span
-          >，其余最近都成功
+        <template v-if="bad">
+          <span class="neg"
+            >{{ bad }} 个产品上次失败<template v-if="finding?.stage"
+              >（{{ finding.name }} · {{ finding.stage }}）</template
+            ></span
+          >
         </template>
         <template v-else>最近都成功</template>
       </div>
     </div>
     <div class="actions">
       <template v-if="store.running">
-        <button class="btn" @click="cancelRun">取消</button>
+        <button class="btn" @click="cancelRun">停止后续</button>
       </template>
       <template v-else>
         <button class="btn ghost" @click="run('deploy')">仅部署</button>

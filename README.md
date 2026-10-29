@@ -47,7 +47,8 @@
 - 文件名 `common_setup.iss`，且 `#include "local.iss"` / `#include ".deploy.iss"` 的名字不变；
 - 读 `AppName`、`AppGuid`，可选 `AppVersionFull`；
 - `SourceDirBase\AppName` 下有 exe 与全部要打包的文件；
-- `SourceDirBase` 与 `OutputDir` 由 `local.iss` 提供。
+- `SourceDirBase` 与 `OutputDir` 由 `local.iss` 提供；
+- ISCC 的产物必须叫 `<应用名> <版本号去掉最后一段> Installer.exe` 并落在 `OutputDir` 下（工具靠这个文件名判断成功）。
 
 生成的文件长这样：
 

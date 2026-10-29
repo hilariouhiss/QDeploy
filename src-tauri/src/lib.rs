@@ -9,10 +9,11 @@ mod runner;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 pub struct AppState {
     config: Mutex<config::Config>,
+    load_warning: Mutex<Option<String>>,
     running: Arc<AtomicBool>,
     cancel: Arc<AtomicBool>,
 }
@@ -24,9 +25,15 @@ fn load_config(state: State<'_, AppState>) -> config::Config {
 
 #[tauri::command]
 fn save_config(state: State<'_, AppState>, cfg: config::Config) -> Result<(), String> {
+    config::validate_names(&cfg.products).map_err(|e| e.to_string())?;
     config::save(&cfg).map_err(|e| e.to_string())?;
     *state.config.lock().unwrap() = cfg;
     Ok(())
+}
+
+#[tauri::command]
+fn take_load_warning(state: State<'_, AppState>) -> Option<String> {
+    state.load_warning.lock().unwrap().take()
 }
 
 #[tauri::command]
@@ -55,6 +62,11 @@ fn resolve_kit(exe_path: String, kit: String, qt_root: String) -> Result<kits::K
 
 #[tauri::command]
 fn start_run(app: AppHandle, state: State<'_, AppState>, app_names: Vec<String>, stage: runner::Stage) -> Result<(), String> {
+    let mut seen = std::collections::HashSet::new();
+    let app_names: Vec<String> = app_names.into_iter().filter(|n| seen.insert(n.clone())).collect();
+    for name in &app_names {
+        config::validate_app_name(name).map_err(|e| e.to_string())?;
+    }
     if state.running.swap(true, Ordering::SeqCst) {
         return Err("已有任务在跑，等它结束或先取消".into());
     }
@@ -76,11 +88,13 @@ fn is_running(state: State<'_, AppState>) -> bool {
 
 #[tauri::command]
 fn clear_staging(state: State<'_, AppState>, app_names: Vec<String>) -> Vec<String> {
+    if state.running.load(Ordering::SeqCst) {
+        return vec!["正在运行，先停止再清空".into()];
+    }
     let cfg = state.config.lock().unwrap().clone();
     let mut messages = Vec::new();
     for name in app_names {
-        let result = manifest::staging_dir(&cfg.machine, &name).and_then(|d| manifest::remove_dir(&d));
-        messages.push(match result {
+        messages.push(match manifest::clear_app_dirs(&cfg.machine, &name) {
             Ok(()) => format!("已清理 {name}"),
             Err(e) => e,
         });
@@ -89,18 +103,25 @@ fn clear_staging(state: State<'_, AppState>, app_names: Vec<String>) -> Vec<Stri
 }
 
 pub fn run() {
-    let cfg = config::load();
+    let (cfg, warning) = config::load();
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
         .manage(AppState {
             config: Mutex::new(cfg),
+            load_warning: Mutex::new(warning),
             running: Arc::new(AtomicBool::new(false)),
             cancel: Arc::new(AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
+            take_load_warning,
             load_history,
             scan_kits,
             probe_exe,

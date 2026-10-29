@@ -47,6 +47,13 @@ pub fn remove_dir(dir: &Path) -> Result<(), String> {
     }
 }
 
+/// Removes both folders a run owns: <root>\<AppName> and <root>\.iss\<AppName>.
+pub fn clear_app_dirs(machine: &MachineConfig, app_name: &str) -> Result<(), String> {
+    let staging = staging_dir(machine, app_name)?;
+    remove_dir(&staging)?;
+    remove_dir(&iss_dir(machine, app_name)?)
+}
+
 pub fn apply_includes(p: &ProductConfig, exe_dir: &Path, staging: &Path) -> Result<(), String> {
     for entry in &p.include {
         let src = if Path::new(&entry.source).is_absolute() {
@@ -218,5 +225,21 @@ mod tests {
         assert!(!staging.join("plugins/sqldrivers/qsqlite.dll").exists());
         assert!(staging.join("app.exe").exists());
         assert_eq!(warnings.len(), 1);
+    }
+
+    #[test]
+    fn clears_staging_and_iss_dirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let m = machine(tmp.path());
+        let staging = staging_dir(&m, "App").unwrap();
+        let iss = iss_dir(&m, "App").unwrap();
+        std::fs::create_dir_all(staging.join("sub")).unwrap();
+        std::fs::write(staging.join("sub/x"), b"x").unwrap();
+        std::fs::create_dir_all(&iss).unwrap();
+        std::fs::write(iss.join("local.iss"), b"x").unwrap();
+
+        clear_app_dirs(&m, "App").unwrap();
+        assert!(!staging.exists());
+        assert!(!iss.exists());
     }
 }

@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -71,23 +71,53 @@ pub fn config_path() -> PathBuf {
     PathBuf::from(base).join("QDeploy").join("config.json")
 }
 
-pub fn load() -> Config {
-    let path = config_path();
-    match std::fs::read_to_string(&path) {
-        Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
-            eprintln!("config.json unreadable ({e}), starting empty: {}", path.display());
-            Config::default()
-        }),
-        Err(_) => Config::default(),
+pub fn load() -> (Config, Option<String>) {
+    load_file(&config_path())
+}
+
+/// A parse error must never silently overwrite the user's only copy: keep a backup and tell the UI.
+fn load_file(path: &Path) -> (Config, Option<String>) {
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(_) => return (Config::default(), None),
+    };
+    match serde_json::from_str(&text) {
+        Ok(cfg) => (cfg, None),
+        Err(e) => {
+            let backup = path.with_file_name(format!("config.broken-{}.json", epoch_secs()));
+            let warning = match std::fs::copy(path, &backup) {
+                Ok(_) => format!(
+                    "config.json 解析失败（{e}），已备份到 {}，本次从空配置开始",
+                    backup.display()
+                ),
+                Err(backup_err) => format!(
+                    "config.json 解析失败（{e}），备份也失败（{backup_err}），本次从空配置开始"
+                ),
+            };
+            (Config::default(), Some(warning))
+        }
     }
 }
 
+fn epoch_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 pub fn save(cfg: &Config) -> Result<()> {
-    let path = config_path();
+    save_file(&config_path(), cfg)
+}
+
+fn save_file(path: &Path, cfg: &Config) -> Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    std::fs::write(&path, serde_json::to_string_pretty(cfg)?)?;
+    // Write then rename so a crash cannot leave a half-written config.
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, serde_json::to_string_pretty(cfg)?)?;
+    std::fs::rename(&tmp, path)?;
     Ok(())
 }
 
@@ -140,6 +170,19 @@ pub fn validate_product(p: &ProductConfig) -> Result<()> {
     Ok(())
 }
 
+/// Names become folder and file names, so they must be legal and unique before anything is written.
+pub fn validate_names(products: &[ProductConfig]) -> Result<()> {
+    let mut seen = std::collections::HashSet::new();
+    for p in products {
+        validate_app_name(&p.app_name)?;
+        let key = p.app_name.to_lowercase();
+        if !seen.insert(key) {
+            bail!("应用名重复（Windows 路径不区分大小写）：{}", p.app_name);
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,5 +226,46 @@ mod tests {
         assert!(validate_app_id("9D5A0C45-3B1E-4B7F-9C2A-8E6D1F0A2B33").is_ok());
         assert!(validate_app_id("{9D5A0C45-3B1E-4B7F-9C2A-8E6D1F0A2B33}").is_err());
         assert!(validate_app_id("nope").is_err());
+    }
+
+    #[test]
+    fn corrupt_config_is_backed_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("config.json");
+        std::fs::write(&path, b"{ not json").unwrap();
+        let (cfg, warning) = load_file(&path);
+        assert!(cfg.products.is_empty());
+        let warning = warning.expect("a warning");
+        assert!(warning.contains("config.broken"), "{warning}");
+        let backup = std::fs::read_dir(tmp.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .find(|e| e.file_name().to_string_lossy().starts_with("config.broken-"))
+            .expect("backup");
+        assert_eq!(std::fs::read(backup.path()).unwrap(), b"{ not json");
+    }
+
+    #[test]
+    fn save_file_replaces_existing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("nested").join("config.json");
+        let mut cfg = Config::default();
+        cfg.machine.qt_root = "C:\\Qt".into();
+        save_file(&path, &cfg).unwrap();
+        cfg.machine.qt_root = "D:\\Qt".into();
+        save_file(&path, &cfg).unwrap();
+        let (back, warning) = load_file(&path);
+        assert!(warning.is_none());
+        assert_eq!(back.machine.qt_root, "D:\\Qt");
+    }
+
+    #[test]
+    fn rejects_duplicate_names_case_insensitively() {
+        let mut a = ProductConfig::default();
+        a.app_name = "App".into();
+        let mut b = a.clone();
+        b.app_name = "app".into();
+        assert!(validate_names(&[a.clone()]).is_ok());
+        assert!(validate_names(&[a, b]).is_err());
     }
 }

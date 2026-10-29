@@ -16,9 +16,6 @@ import {
 export interface Live {
   status: string;
   stage: number;
-  message: string;
-  stagingKept: string;
-  installer: string;
 }
 
 export const store = reactive({
@@ -45,18 +42,22 @@ export function currentProduct(): ProductConfig | null {
 
 export async function loadConfig() {
   store.cfg = await invoke<Config>("load_config");
+  const warning = await invoke<string | null>("take_load_warning");
+  if (warning) store.message = warning;
 }
 
 export async function fetchHistory() {
   store.history = await invoke<RunRecord[]>("load_history");
 }
 
-export async function saveConfig() {
+export async function saveConfig(): Promise<boolean> {
   try {
     await invoke("save_config", { cfg: store.cfg });
     store.message = "已保存";
+    return true;
   } catch (e) {
     store.message = "保存失败：" + String(e);
+    return false;
   }
 }
 
@@ -123,22 +124,21 @@ export async function startRun(stage: Stages, names?: string[]) {
     store.message = "先勾选要跑的产品";
     return;
   }
-  for (const n of target) {
-    store.live[n] = { status: "running", stage: -1, message: "", stagingKept: "", installer: "" };
-    store.logs[n] = [];
-  }
+  if (!(await saveConfig())) return;
+  for (const n of target) store.logs[n] = [];
   store.running = true;
   store.message = "";
   try {
     await invoke("start_run", { appNames: target, stage });
   } catch (e) {
-    store.running = false;
+    store.running = await invoke<boolean>("is_running").catch(() => false);
     store.message = String(e);
   }
 }
 
 export async function cancelRun() {
   await invoke("cancel_run");
+  store.message = "已请求停止：当前产品结束后不再继续";
 }
 
 export async function clearStaging() {
@@ -153,10 +153,7 @@ export async function wireEvents() {
     const prev = store.live[p.appName];
     store.live[p.appName] = {
       status: p.status,
-      stage: p.stage >= 0 ? p.stage : prev ? prev.stage : -1,
-      message: p.message || (prev ? prev.message : ""),
-      stagingKept: p.stagingKept || (prev ? prev.stagingKept : ""),
-      installer: p.installer || (prev ? prev.installer : ""),
+      stage: p.stage >= 0 ? p.stage : p.status === "running" ? -1 : prev ? prev.stage : -1,
     };
     if (p.status !== "running") await fetchHistory();
   });
@@ -165,8 +162,14 @@ export async function wireEvents() {
     if (!store.logs[p.appName]) store.logs[p.appName] = [];
     store.logs[p.appName].push(p.line);
   });
-  await listen<{ ok: number; failed: number }>("run://done", (e) => {
+  await listen<{ ok: number; failed: number; cancelled: number }>("run://done", (e) => {
     store.running = false;
-    store.message = "完成：成功 " + e.payload.ok + "，失败 " + e.payload.failed;
+    for (const [name, live] of Object.entries(store.live)) {
+      if (live.status === "running") store.live[name] = { status: "failed", stage: live.stage };
+    }
+    const { ok, failed, cancelled } = e.payload;
+    store.message = cancelled
+      ? `已停止：成功 ${ok}，失败 ${failed}，未运行 ${cancelled}`
+      : `完成：成功 ${ok}，失败 ${failed}`;
   });
 }

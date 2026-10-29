@@ -42,8 +42,6 @@ export interface ProbeInfo {
   archBits: number;
   qtMajor: number;
   compiler: string;
-  versionFull: string;
-  versionShort: string;
 }
 
 export interface StageRun {

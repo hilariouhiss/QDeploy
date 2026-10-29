@@ -58,6 +58,7 @@ pub struct RunCtx<'a> {
     pub machine: &'a MachineConfig,
     pub product: &'a ProductConfig,
     pub tools: &'a dyn ToolRunner,
+    pub probe: fn(&Path) -> probe::ProbeInfo,
     pub log: &'a dyn Fn(&str),
     pub step: &'a dyn Fn(usize),
     /// false only in tests that inspect the staging dir afterwards
@@ -117,13 +118,25 @@ pub fn run_product(ctx: &RunCtx<'_>, stage: Stage) -> RunResult {
         }
         Err(e) => {
             let stages = ticker.finish(false);
+            let staging_kept = manifest::staging_dir(ctx.machine, &ctx.product.app_name)
+                .map(|dir| kept(&dir))
+                .unwrap_or_default();
             RunResult {
                 ok: false,
                 message: format!("{e:#}"),
+                staging_kept,
                 stages,
                 ..Default::default()
             }
         }
+    }
+}
+
+fn kept(staging: &Path) -> String {
+    if staging.exists() {
+        staging.to_string_lossy().to_string()
+    } else {
+        String::new()
     }
 }
 
@@ -133,7 +146,7 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage, t: &mut Ticker<'_>) -> Result<RunRe
 
     t.begin(0);
     config::validate_product(p)?;
-    let info = probe::probe(Path::new(&p.exe_path));
+    let info = (ctx.probe)(Path::new(&p.exe_path));
     if !info.ok {
         bail!("{}", info.error);
     }
@@ -167,13 +180,14 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage, t: &mut Ticker<'_>) -> Result<RunRe
 
     if ctx.cleanup && stage.packages() {
         t.begin(8);
-        manifest::remove_dir(&staging).map_err(|e| anyhow::anyhow!(e))?;
-        manifest::remove_dir(&manifest::iss_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?)
-            .map_err(|e| anyhow::anyhow!(e))?;
+        let clean = manifest::clear_app_dirs(m, &p.app_name);
+        if let Err(e) = &clean {
+            (ctx.log)(&format!("警告：清理失败：{e}"));
+        }
         return Ok(RunResult {
             ok: true,
-            message: "完成，暂存已清理".into(),
-            staging_kept: String::new(),
+            message: if clean.is_ok() { "完成，暂存已清理".into() } else { "完成，暂存未能清理".into() },
+            staging_kept: kept(&staging),
             installer: installer.to_string_lossy().to_string(),
             version: version_short,
             stages: Vec::new(),
@@ -183,7 +197,7 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage, t: &mut Ticker<'_>) -> Result<RunRe
     Ok(RunResult {
         ok: true,
         message: "完成".into(),
-        staging_kept: String::new(),
+        staging_kept: kept(&staging),
         installer: installer.to_string_lossy().to_string(),
         version: version_short,
         stages: Vec::new(),
@@ -194,9 +208,7 @@ fn deploy(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, windeployqt: &str, staging: &Pat
     let p = ctx.product;
 
     t.begin(1);
-    manifest::remove_dir(staging).map_err(|e| anyhow::anyhow!(e))?;
-    manifest::remove_dir(&manifest::iss_dir(ctx.machine, &p.app_name).map_err(|e| anyhow::anyhow!(e))?)
-        .map_err(|e| anyhow::anyhow!(e))?;
+    manifest::clear_app_dirs(ctx.machine, &p.app_name).map_err(|e| anyhow::anyhow!(e))?;
     std::fs::create_dir_all(staging)?;
 
     t.begin(2);
@@ -252,12 +264,10 @@ fn package(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, version_short: &str, staging: &
 
     t.begin(7);
     let installer = Path::new(&p.output_dir).join(format!("{} {} Installer.exe", p.app_name, version_short));
-    if installer.exists() {
-        std::fs::remove_file(&installer).with_context(|| format!("删不掉旧的 {}", installer.display()))?;
-    }
     if let Some(dir) = installer.parent() {
         std::fs::create_dir_all(dir)?;
     }
+    let before = installer.metadata().and_then(|m| m.modified()).ok();
     let iss_path = work.join(format!("{}.iss", p.app_name));
     (ctx.log)(&format!("{} {}", m.iscc_exe, iss_path.display()));
     let out = ctx.tools.run(Path::new(&m.iscc_exe), &[iss_path.to_string_lossy().to_string()], &work)?;
@@ -265,8 +275,14 @@ fn package(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, version_short: &str, staging: &
     if !out.status.success() {
         bail!("ISCC 失败，退出码 {:?}", out.status.code());
     }
-    if !installer.exists() {
-        bail!("ISCC 返回成功，但没找到 {}", installer.display());
+    let after = installer.metadata().and_then(|m| m.modified()).ok();
+    let fresh = match (before, after) {
+        (Some(before), Some(after)) => after > before,
+        (None, Some(_)) => true,
+        _ => false,
+    };
+    if !fresh {
+        bail!("ISCC 返回成功，但没找到新生成的 {}", installer.display());
     }
     Ok(installer)
 }
@@ -327,8 +343,12 @@ mod tests {
         std::fs::create_dir_all(&build).unwrap();
         std::fs::write(build.join("App.exe"), b"MZ").unwrap();
         std::fs::write(build.join("app.ini"), b"cfg").unwrap();
+        let kit_bin = root.join("qt/6.9.0/mingw_64/bin");
+        std::fs::create_dir_all(&kit_bin).unwrap();
+        std::fs::write(kit_bin.join("windeployqt.exe"), b"x").unwrap();
 
         let machine = MachineConfig {
+            qt_root: root.join("qt").to_string_lossy().to_string(),
             staging_root: root.join("staging").to_string_lossy().to_string(),
             iss_template_path: root.join("common_setup.iss").to_string_lossy().to_string(),
             iscc_exe: root.join("ISCC.exe").to_string_lossy().to_string(),
@@ -346,8 +366,27 @@ mod tests {
         Env { _tmp: tmp, machine, product, installer }
     }
 
+    fn fake_probe(_: &Path) -> probe::ProbeInfo {
+        probe::ProbeInfo {
+            ok: true,
+            arch_bits: 64,
+            qt_major: 6,
+            compiler: "mingw".into(),
+            version_full: "1.2.3.4".into(),
+            ..Default::default()
+        }
+    }
+
     fn ctx<'a>(env: &'a Env, tools: &'a FakeTools, product: &'a ProductConfig, cleanup: bool) -> RunCtx<'a> {
-        RunCtx { machine: &env.machine, product, tools, log: &|_| {}, step: &|_| {}, cleanup }
+        RunCtx {
+            machine: &env.machine,
+            product,
+            tools,
+            probe: fake_probe,
+            log: &|_| {},
+            step: &|_| {},
+            cleanup,
+        }
     }
 
     fn staging_of(env: &Env) -> PathBuf {
@@ -413,8 +452,7 @@ mod tests {
 
     #[test]
     fn ticker_marks_the_failed_stage() {
-        let mut seen = Vec::new();
-        let step = |i: usize| {};
+        let step = |_: usize| {};
         let mut t = Ticker::new(&step);
         t.begin(0);
         t.begin(1);
@@ -423,7 +461,54 @@ mod tests {
         assert_eq!(stages[0].state, "done");
         assert_eq!(stages[1].state, "fail");
         assert_eq!(stages[2].state, "skipped");
-        seen.push(0);
+    }
+
+    #[test]
+    fn deploy_only_reports_kept_staging() {
+        let env = setup();
+        let tools = FakeTools { installer: env.installer.clone(), fail_iscc: false };
+        let product = env.product.clone();
+        let r = run_product(&ctx(&env, &tools, &product, true), Stage::Deploy);
+        assert!(r.ok, "{}", r.message);
+        assert_eq!(r.staging_kept, staging_of(&env).to_string_lossy().to_string());
+        assert!(staging_of(&env).exists());
+    }
+
+    #[test]
+    fn package_cleanup_reports_installer_and_no_staging() {
+        let env = setup();
+        let tools = FakeTools { installer: env.installer.clone(), fail_iscc: false };
+        let product = env.product.clone();
+        let r = run_product(&ctx(&env, &tools, &product, true), Stage::Both);
+        assert!(r.ok, "{}", r.message);
+        assert!(env.installer.exists());
+        assert!(r.staging_kept.is_empty());
+        assert!(!staging_of(&env).exists());
+    }
+
+    #[test]
+    fn failed_run_reports_kept_staging() {
+        let env = setup();
+        let tools = FakeTools { installer: env.installer.clone(), fail_iscc: true };
+        let product = env.product.clone();
+        let r = run_product(&ctx(&env, &tools, &product, false), Stage::Both);
+        assert!(!r.ok);
+        assert_eq!(r.staging_kept, staging_of(&env).to_string_lossy().to_string());
+        assert!(staging_of(&env).exists());
+    }
+
+    #[test]
+    fn failed_rebuild_keeps_previous_installer() {
+        let env = setup();
+        std::fs::create_dir_all(env.installer.parent().unwrap()).unwrap();
+        std::fs::write(&env.installer, b"old").unwrap();
+        let tools = FakeTools { installer: env.installer.clone(), fail_iscc: true };
+        let product = env.product.clone();
+        let c = ctx(&env, &tools, &product, false);
+        let mut t = Ticker::new(&|_| {});
+        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        assert!(package(&c, &mut t, "1.2.3", &staging_of(&env)).is_err());
+        assert_eq!(std::fs::read(&env.installer).unwrap(), b"old");
     }
 
     fn has(files: &[String], name: &str) -> bool {

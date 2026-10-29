@@ -10,7 +10,6 @@ pub struct ProbeInfo {
     pub qt_major: u32,
     pub compiler: String,
     pub version_full: String,
-    pub version_short: String,
 }
 
 pub fn probe(exe: &Path) -> ProbeInfo {
@@ -41,7 +40,6 @@ pub fn probe(exe: &Path) -> ProbeInfo {
     info.qt_major = qt_major;
     info.compiler = compiler;
     info.version_full = file_version(exe).unwrap_or_default();
-    info.version_short = short_version(&info.version_full);
     if qt_major == 0 {
         info.error = "导入表里没有 Qt5Core/Qt6Core，像是静态链接或不是 Qt 程序".into();
         return info;
