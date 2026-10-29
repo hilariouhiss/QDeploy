@@ -5,10 +5,12 @@ import type { ProductConfig } from "../types";
 const props = defineProps<{ product: ProductConfig }>();
 
 async function addFile(dir: boolean) {
-  const picked = await open({ directory: dir, multiple: false });
-  if (typeof picked !== "string") return;
-  const parts = picked.split(/[\\/]/);
-  props.product.include.push({ source: picked, target: parts[parts.length - 1] || "" });
+  const picked = await open({ directory: dir, multiple: !dir });
+  if (!picked) return;
+  for (const p of Array.isArray(picked) ? picked : [picked]) {
+    const parts = p.split(/[\\/]/);
+    props.product.include.push({ source: p, target: parts[parts.length - 1] || "" });
+  }
 }
 </script>
 
