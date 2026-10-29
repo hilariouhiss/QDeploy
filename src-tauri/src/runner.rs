@@ -37,10 +37,18 @@ pub struct RealTools;
 
 impl ToolRunner for RealTools {
     fn run(&self, program: &Path, args: &[String], cwd: &Path) -> Result<Output> {
-        std::process::Command::new(program)
-            .args(args)
-            .current_dir(cwd)
-            .output()
+        let mut cmd = std::process::Command::new(program);
+        cmd.args(args).current_dir(cwd);
+        // windeployqt asks qmake for its Qt paths through PATH. Put the tool's own
+        // folder first so another Qt on PATH cannot redirect it.
+        if let Some(dir) = program.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+            let inherited = std::env::var_os("PATH").unwrap_or_default();
+            let paths = std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&inherited));
+            if let Ok(path) = std::env::join_paths(paths) {
+                cmd.env("PATH", path);
+            }
+        }
+        cmd.output()
             .with_context(|| format!("启动 {} 失败", program.display()))
     }
 }
@@ -170,7 +178,7 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage, t: &mut Ticker<'_>) -> Result<RunRe
     let staging = manifest::staging_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?;
 
     if stage.deploys() {
-        deploy(ctx, t, &kit.windeployqt, &staging, Path::new(&p.exe_path))?;
+        deploy(ctx, t, &kit.windeployqt, &staging, Path::new(&p.exe_path), &info.compiler)?;
     }
 
     let mut installer = PathBuf::new();
@@ -204,7 +212,30 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage, t: &mut Ticker<'_>) -> Result<RunRe
     })
 }
 
-fn deploy(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, windeployqt: &str, staging: &Path, exe_src: &Path) -> Result<()> {
+const MINGW_RUNTIME: [&str; 4] = [
+    "libgcc_s_seh-1.dll",
+    "libgcc_s_dw2-1.dll",
+    "libstdc++-6.dll",
+    "libwinpthread-1.dll",
+];
+const LLVM_RUNTIME: [&str; 2] = ["libc++.dll", "libunwind.dll"];
+
+fn copy_runtime_dlls(windeployqt: &str, staging: &Path, compiler: &str) -> Result<()> {
+    let names = if compiler == "llvm-mingw" { &LLVM_RUNTIME[..] } else { &MINGW_RUNTIME[..] };
+    let Some(bin) = Path::new(windeployqt).parent() else {
+        return Ok(());
+    };
+    for name in names {
+        let src = bin.join(name);
+        let dst = staging.join(name);
+        if src.is_file() && !dst.exists() {
+            std::fs::copy(&src, &dst).with_context(|| format!("复制运行库 {} 失败", src.display()))?;
+        }
+    }
+    Ok(())
+}
+
+fn deploy(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, windeployqt: &str, staging: &Path, exe_src: &Path, compiler: &str) -> Result<()> {
     let p = ctx.product;
 
     t.begin(1);
@@ -220,7 +251,10 @@ fn deploy(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, windeployqt: &str, staging: &Pat
     manifest::apply_includes(p, &exe_dir, staging).map_err(|e| anyhow::anyhow!(e))?;
 
     t.begin(4);
-    let mut args = vec!["--release".to_string()];
+    // Let windeployqt detect debug/release from the exe. Forcing --release also
+    // rejects plugins that its MinGW check misreads as debug (separate_debug_info).
+    // Its GCC lookup needs g++ on PATH, which we do not have; copy the runtime instead.
+    let mut args = vec!["--no-compiler-runtime".to_string()];
     args.extend(p.windeployqt_args.iter().cloned());
     args.push(exe_dst.file_name().unwrap().to_string_lossy().to_string());
     (ctx.log)(&format!("{windeployqt} {}", args.join(" ")));
@@ -229,6 +263,7 @@ fn deploy(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, windeployqt: &str, staging: &Pat
     if !out.status.success() {
         bail!("windeployqt 失败，退出码 {:?}", out.status.code());
     }
+    copy_runtime_dlls(windeployqt, staging, compiler)?;
 
     t.begin(5);
     for w in manifest::apply_excludes(p, staging).map_err(|e| anyhow::anyhow!(e))? {
@@ -401,18 +436,18 @@ mod tests {
         product.include = vec![ManifestEntry { source: "app.ini".into(), target: "config/app.ini".into() }];
         product.exclude = vec!["plugins\\sqldrivers\\*".into()];
 
-        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path), "mingw").unwrap();
         let first = list(&staging_of(&env));
         assert!(has(&first, "config/app.ini"));
         assert!(has(&first, "App.exe"));
         assert!(!has(&first, "plugins/sqldrivers/qsqlite.dll"), "exclude must delete it");
 
-        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path), "mingw").unwrap();
         assert_eq!(first, list(&staging_of(&env)), "second run must produce the same tree");
 
         product.include.clear();
         product.exclude.clear();
-        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&ctx(&env, &tools, &product, false), &mut Ticker::new(&|_| {}), "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path), "mingw").unwrap();
         assert!(!has(&list(&staging_of(&env)), "config/app.ini"), "stale include must be gone");
     }
 
@@ -424,7 +459,7 @@ mod tests {
         let c = ctx(&env, &tools, &product, true);
         let mut t = Ticker::new(&|_| {});
 
-        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path), "mingw").unwrap();
         let installer = package(&c, &mut t, "1.2.3", &staging_of(&env)).unwrap();
         assert!(installer.exists());
 
@@ -445,7 +480,7 @@ mod tests {
         let product = env.product.clone();
         let c = ctx(&env, &tools, &product, false);
         let mut t = Ticker::new(&|_| {});
-        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path), "mingw").unwrap();
         assert!(package(&c, &mut t, "1.2.3", &staging_of(&env)).is_err());
         assert!(staging_of(&env).exists(), "failure must leave evidence");
     }
@@ -506,9 +541,48 @@ mod tests {
         let product = env.product.clone();
         let c = ctx(&env, &tools, &product, false);
         let mut t = Ticker::new(&|_| {});
-        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path)).unwrap();
+        deploy(&c, &mut t, "windeployqt.exe", &staging_of(&env), Path::new(&product.exe_path), "mingw").unwrap();
         assert!(package(&c, &mut t, "1.2.3", &staging_of(&env)).is_err());
         assert_eq!(std::fs::read(&env.installer).unwrap(), b"old");
+    }
+
+    #[test]
+    fn prepends_tool_dir_to_path() {
+        let tools = RealTools;
+        let cmd = Path::new("C:\\Windows\\System32\\cmd.exe");
+        let out = tools.run(cmd, &["/c".into(), "echo %PATH%".into()], Path::new(".")).unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            text.trim_start().to_lowercase().starts_with("c:\\windows\\system32;"),
+            "child PATH was {text}"
+        );
+    }
+
+    #[test]
+    fn copies_missing_mingw_runtime() {
+        let env = setup();
+        let kit_bin = Path::new(&env.machine.qt_root).join("6.9.0/mingw_64/bin");
+        let names = ["libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll"];
+        for name in names {
+            std::fs::write(kit_bin.join(name), b"rt").unwrap();
+        }
+        let tools = FakeTools { installer: env.installer.clone(), fail_iscc: false };
+        let product = env.product.clone();
+        let windeployqt = kit_bin.join("windeployqt.exe");
+        let c = ctx(&env, &tools, &product, false);
+        let mut t = Ticker::new(&|_| {});
+        deploy(
+            &c,
+            &mut t,
+            windeployqt.to_str().unwrap(),
+            &staging_of(&env),
+            Path::new(&product.exe_path),
+            "mingw",
+        )
+        .unwrap();
+        for name in names {
+            assert!(staging_of(&env).join(name).is_file(), "{name} missing");
+        }
     }
 
     fn has(files: &[String], name: &str) -> bool {
