@@ -285,14 +285,15 @@ fn package(ctx: &RunCtx<'_>, t: &mut Ticker<'_>, version_short: &str, staging: &
     }
     t.begin(6);
     let work = manifest::iss_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?;
+    let out_dir = manifest::installer_dir(m).map_err(|e| anyhow::anyhow!(e))?;
     std::fs::create_dir_all(&work)?;
-    let script = iss::render(p, version_short, staging);
+    let script = iss::render(p, version_short, staging, &out_dir);
     std::fs::write(work.join("common_setup.iss"), iss::TEMPLATE)?;
     std::fs::write(work.join(format!("{}.iss", p.app_name)), &script)?;
     (ctx.log)(&format!("--- {}.iss ---\n{}", p.app_name, script));
 
     t.begin(7);
-    let installer = Path::new(&p.output_dir).join(format!("{} {} Installer.exe", p.app_name, version_short));
+    let installer = out_dir.join(format!("{} {} Installer.exe", p.app_name, version_short));
     if let Some(dir) = installer.parent() {
         std::fs::create_dir_all(dir)?;
     }
@@ -377,7 +378,7 @@ mod tests {
 
         let machine = MachineConfig {
             qt_root: root.join("qt").to_string_lossy().to_string(),
-            staging_root: root.join("staging").to_string_lossy().to_string(),
+            work_root: root.join("work").to_string_lossy().to_string(),
             iscc_exe: root.join("ISCC.exe").to_string_lossy().to_string(),
             ..Default::default()
         };
@@ -385,11 +386,10 @@ mod tests {
             app_name: "App".into(),
             app_id: "9D5A0C45-3B1E-4B7F-9C2A-8E6D1F0A2B33".into(),
             exe_path: build.join("App.exe").to_string_lossy().to_string(),
-            output_dir: root.join("out").to_string_lossy().to_string(),
             kit: "auto".into(),
             ..Default::default()
         };
-        let installer = root.join("out").join("App 1.2.3 Installer.exe");
+        let installer = root.join("work").join("installers").join("App 1.2.3 Installer.exe");
         Env { _tmp: tmp, machine, product, installer }
     }
 
@@ -460,6 +460,10 @@ mod tests {
         assert!(script.contains("#define AppName \"App\""));
         assert!(script.contains("#define AppVersion \"1.2.3\""));
         assert!(script.contains(&format!("#define SourceDir \"{}\"", staging_of(&env).display())));
+        assert!(script.contains(&format!(
+            "#define OutputDir \"{}\"",
+            manifest::installer_dir(&env.machine).unwrap().display()
+        )));
         assert!(script.ends_with("#include \"common_setup.iss\"\n"));
         assert!(!work.join("local.iss").exists(), "local.iss is gone from the contract");
         assert!(!work.join(".deploy.iss").exists(), ".deploy.iss is gone from the contract");

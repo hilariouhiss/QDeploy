@@ -32,7 +32,9 @@ function go(page: "products" | "history" | "settings") {
   store.page = page;
 }
 
-const stagingTail = computed(() => store.cfg.machine.stagingRoot || "未设置暂存根");
+const workTail = computed(
+  () => store.cfg.machine.workRoot || store.defaultWorkRoot || "工作目录未设置",
+);
 const failed = computed(() => store.history.filter((r) => !r.ok).length);
 </script>
 
@@ -106,7 +108,7 @@ const failed = computed(() => store.history.filter((r) => !r.ok).length);
       </button>
       <div class="side-foot">
         <b>本机</b>
-        {{ stagingTail }}
+        {{ workTail }}
         <div v-if="failed" style="color: var(--negative); margin-top: 6px">
           {{ failed }} 次失败记录
         </div>

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
-import { store, scanKits, saveConfig, clearStaging } from "../store";
+import { store, scanKits, saveConfig, clearStaging, openDir } from "../store";
 
 const kitInfo = ref("");
 
-async function browseDir(field: "qtRoot" | "stagingRoot") {
+async function browseDir(field: "qtRoot" | "workRoot") {
   const d = await open({ directory: true, multiple: false });
   if (typeof d === "string") store.cfg.machine[field] = d;
 }
@@ -57,10 +57,21 @@ async function doScan() {
       </label>
 
       <label class="field" style="margin-top: 16px">
-        <span>部署暂存根</span>
+        <span>工作目录</span>
         <div class="with-btn">
-          <input v-model="store.cfg.machine.stagingRoot" class="input mono" />
-          <button class="btn" @click="browseDir('stagingRoot')">浏览</button>
+          <input
+            v-model="store.cfg.machine.workRoot"
+            class="input mono"
+            :placeholder="store.defaultWorkRoot"
+          />
+          <button class="btn" @click="browseDir('workRoot')">浏览</button>
+          <button class="btn" @click="openDir(store.cfg.machine.workRoot || store.defaultWorkRoot)">
+            打开
+          </button>
+        </div>
+        <div class="muted" style="font-size: 12px; margin-top: 6px">
+          部署与安装包都在这里，自动分成 deploy（部署）和
+          installers（安装包）两个子目录；留空用默认位置（安装目录下的 QDeployData）。
         </div>
       </label>
 

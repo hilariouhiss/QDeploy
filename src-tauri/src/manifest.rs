@@ -20,18 +20,46 @@ fn too_shallow(root: &Path) -> bool {
     root.components().filter(|c| matches!(c, Component::Normal(_))).count() < 2
 }
 
-/// staging dir == <stagingRoot>\<AppName>; the generated iss hands it to the template as SourceDir.
+/// 工作目录是部署、安装包、iss 的共同根；留空用默认位置（exe 旁的 QDeployData），与界面 placeholder 一致。
+fn checked_root(machine: &MachineConfig) -> Result<PathBuf, String> {
+    let configured = if machine.work_root.trim().is_empty() {
+        crate::config::default_work_root()
+    } else {
+        machine.work_root.clone()
+    };
+    if configured.trim().is_empty() {
+        return Err("工作目录没设置".into());
+    }
+    let root = normalize(Path::new(&configured));
+    if root.parent().is_none() {
+        return Err(format!("工作目录不能是盘根或相对路径：{}", root.display()));
+    }
+    Ok(root)
+}
+
+/// 部署目录 == <工作目录>\deploy；清空阶段删的就是这下面的 <AppName>。
+pub fn deploy_root(machine: &MachineConfig) -> Result<PathBuf, String> {
+    let dir = checked_root(machine)?.join("deploy");
+    if too_shallow(&dir) {
+        return Err(format!("部署目录太浅，拒绝操作：{}", dir.display()));
+    }
+    Ok(dir)
+}
+
+/// 安装包目录 == <工作目录>\installers。
+pub fn installer_dir(machine: &MachineConfig) -> Result<PathBuf, String> {
+    Ok(checked_root(machine)?.join("installers"))
+}
+
+/// staging dir == <工作目录>\deploy\<AppName>; the generated iss hands it to the template as SourceDir.
 pub fn staging_dir(machine: &MachineConfig, app_name: &str) -> Result<PathBuf, String> {
     validate_app_name(app_name).map_err(|e| e.to_string())?;
-    let root = normalize(Path::new(&machine.staging_root));
-    if machine.staging_root.trim().is_empty() || too_shallow(&root) {
-        return Err(format!("暂存根路径太浅，拒绝操作：{}", root.display()));
-    }
-    Ok(root.join(app_name))
+    Ok(deploy_root(machine)?.join(app_name))
 }
 
 pub fn iss_dir(machine: &MachineConfig, app_name: &str) -> Result<PathBuf, String> {
-    Ok(staging_dir(machine, app_name)?.parent().unwrap().join(".iss").join(app_name))
+    validate_app_name(app_name).map_err(|e| e.to_string())?;
+    Ok(checked_root(machine)?.join(".iss").join(app_name))
 }
 
 pub fn remove_dir(dir: &Path) -> Result<(), String> {
@@ -47,7 +75,7 @@ pub fn remove_dir(dir: &Path) -> Result<(), String> {
     }
 }
 
-/// Removes both folders a run owns: <root>\<AppName> and <root>\.iss\<AppName>.
+/// Removes both folders a run owns: <工作目录>\deploy\<AppName> and <工作目录>\.iss\<AppName>.
 pub fn clear_app_dirs(machine: &MachineConfig, app_name: &str) -> Result<(), String> {
     let staging = staging_dir(machine, app_name)?;
     remove_dir(&staging)?;
@@ -163,7 +191,7 @@ mod tests {
 
     fn machine(root: &Path) -> MachineConfig {
         MachineConfig {
-            staging_root: root.join("staging").to_string_lossy().to_string(),
+            work_root: root.join("work").to_string_lossy().to_string(),
             ..Default::default()
         }
     }
@@ -174,8 +202,39 @@ mod tests {
 
     #[test]
     fn rejects_shallow_root() {
-        let m = MachineConfig { staging_root: "C:\\".into(), ..Default::default() };
+        let m = MachineConfig { work_root: "C:\\".into(), ..Default::default() };
         assert!(staging_dir(&m, "App").is_err());
+        assert!(deploy_root(&m).is_err());
+        assert!(installer_dir(&m).is_err());
+    }
+
+    #[test]
+    fn empty_work_root_falls_back_to_default() {
+        let m = MachineConfig::default();
+        let staging = staging_dir(&m, "App").unwrap();
+        assert!(staging.ends_with(Path::new("QDeployData/deploy/App")), "{}", staging.display());
+        assert_eq!(
+            installer_dir(&m).unwrap(),
+            Path::new(&crate::config::default_work_root()).join("installers")
+        );
+    }
+
+    #[test]
+    fn derives_dirs_from_work_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let m = machine(tmp.path());
+        let root = tmp.path().join("work");
+        assert_eq!(deploy_root(&m).unwrap(), root.join("deploy"));
+        assert_eq!(installer_dir(&m).unwrap(), root.join("installers"));
+        assert_eq!(staging_dir(&m, "App").unwrap(), root.join("deploy").join("App"));
+        assert_eq!(iss_dir(&m, "App").unwrap(), root.join(".iss").join("App"));
+
+        // 盘根下面一层就够安全：删除目标始终是 <部署目录>\<App>
+        let drive_child = MachineConfig { work_root: "C:\\QDeployData".into(), ..Default::default() };
+        assert_eq!(
+            staging_dir(&drive_child, "App").unwrap(),
+            Path::new("C:\\QDeployData").join("deploy").join("App")
+        );
     }
 
     #[test]

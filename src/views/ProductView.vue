@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -12,6 +12,7 @@ import {
   saveConfig,
   startRun,
   cancelRun,
+  openDir,
 } from "../store";
 import type { ProbeInfo } from "../types";
 import Ledger from "../components/Ledger.vue";
@@ -53,6 +54,15 @@ async function copyLog() {
 }
 
 const probe = ref("");
+/** 共享的安装包目录；最后一次运行没出安装包时也用它兜底打开。 */
+const installerRoot = ref("");
+onMounted(async () => {
+  try {
+    installerRoot.value = await invoke<string>("installer_dir");
+  } catch {
+    installerRoot.value = "";
+  }
+});
 
 async function refreshProbe() {
   if (!p.value || !p.value.exePath) {
@@ -87,12 +97,6 @@ async function browseExe() {
   if (!p.value) return;
   const f = await open({ multiple: false, filters: [{ name: "可执行文件", extensions: ["exe"] }] });
   if (typeof f === "string") p.value.exePath = f;
-}
-
-async function browseOut() {
-  if (!p.value) return;
-  const d = await open({ directory: true, multiple: false });
-  if (typeof d === "string") p.value.outputDir = d;
 }
 
 const argsText = computed({
@@ -209,8 +213,39 @@ const history = computed(() =>
               </div>
             </div>
           </div>
-          <div v-if="rec && !running && rec.stagingKept" class="sub" style="margin-top: 10px">
+          <div v-if="rec && !running && rec.installer" class="sub" style="margin-top: 10px">
+            安装包 <span class="mono">{{ rec.installer }}</span>
+            <button
+              class="btn ghost"
+              style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
+              @click="openDir(rec.installer)"
+            >
+              打开目录
+            </button>
+          </div>
+          <div
+            v-else-if="installerRoot"
+            class="sub"
+            style="margin-top: 10px; overflow-wrap: anywhere"
+          >
+            安装包目录 <span class="mono">{{ installerRoot }}</span>
+            <button
+              class="btn ghost"
+              style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
+              @click="openDir(installerRoot)"
+            >
+              打开目录
+            </button>
+          </div>
+          <div v-if="rec && !running && rec.stagingKept" class="sub" style="margin-top: 6px">
             暂存保留在 <span class="mono">{{ rec.stagingKept }}</span>
+            <button
+              class="btn ghost"
+              style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
+              @click="openDir(rec.stagingKept)"
+            >
+              打开目录
+            </button>
           </div>
         </section>
 
@@ -291,13 +326,6 @@ const history = computed(() =>
               ><input v-model="p.versionOverride" class="input mono"
             /></label>
           </div>
-          <label class="field" style="margin-top: 10px">
-            <span>安装包输出目录</span>
-            <div class="with-btn">
-              <input v-model="p.outputDir" class="input mono" />
-              <button class="btn" @click="browseOut">浏览</button>
-            </div>
-          </label>
           <label class="field" style="margin-top: 10px">
             <span>windeployqt 额外参数（一行一个）</span>
             <div class="chips">

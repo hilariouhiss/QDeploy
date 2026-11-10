@@ -7,7 +7,9 @@ use std::path::{Path, PathBuf};
 pub struct MachineConfig {
     pub qt_root: String,
     pub iscc_exe: String,
-    pub staging_root: String,
+    /// 部署、安装包、iss 都放在这个根下分目录；默认是 QDeploy 安装目录里的 QDeployData。
+    #[serde(alias = "stagingRoot")]
+    pub work_root: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -24,7 +26,6 @@ pub struct ProductConfig {
     pub app_id: String,
     pub exe_path: String,
     pub kit: String,
-    pub output_dir: String,
     pub windeployqt_args: Vec<String>,
     pub version_override: String,
     pub include: Vec<ManifestEntry>,
@@ -38,7 +39,6 @@ impl Default for ProductConfig {
             app_id: String::new(),
             exe_path: String::new(),
             kit: "auto".into(),
-            output_dir: String::new(),
             windeployqt_args: Vec::new(),
             version_override: String::new(),
             include: Vec::new(),
@@ -68,6 +68,17 @@ impl Default for Config {
 pub fn config_path() -> PathBuf {
     let base = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
     PathBuf::from(base).join("QDeploy").join("config.json")
+}
+
+const DEFAULT_WORK_DIR: &str = "QDeployData";
+
+/// 默认工作目录 = QDeploy exe 旁边的 QDeployData；换盘或换位置在设置里改。
+pub fn default_work_root() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join(DEFAULT_WORK_DIR)))
+        .map(|dir| dir.to_string_lossy().to_string())
+        .unwrap_or_default()
 }
 
 pub fn load() -> (Config, Option<String>) {
@@ -163,9 +174,6 @@ pub fn validate_product(p: &ProductConfig) -> Result<()> {
     if got != want.to_lowercase() {
         bail!("exe 文件名必须叫 {want}（模板按 AppName 拼 exe 名），当前是 {got}");
     }
-    if p.output_dir.trim().is_empty() {
-        bail!("安装包输出目录不能为空");
-    }
     Ok(())
 }
 
@@ -190,24 +198,41 @@ mod tests {
     fn round_trip() {
         let mut cfg = Config::default();
         cfg.machine.qt_root = "C:\\Qt".into();
+        cfg.machine.work_root = "D:\\QDeployData".into();
         let mut p = ProductConfig::default();
         p.app_name = "AlphaTool".into();
         p.app_id = "9D5A0C45-3B1E-4B7F-9C2A-8E6D1F0A2B33".into();
         p.exe_path = "D:\\b\\AlphaTool.exe".into();
-        p.output_dir = "D:\\out".into();
         cfg.products.push(p);
         let text = serde_json::to_string(&cfg).unwrap();
         let back: Config = serde_json::from_str(&text).unwrap();
         assert_eq!(back.products[0].app_name, "AlphaTool");
         assert_eq!(back.products[0].kit, "auto");
+        assert_eq!(back.machine.work_root, "D:\\QDeployData");
     }
 
     #[test]
     fn missing_fields_default() {
         let cfg: Config = serde_json::from_str(r#"{"products":[{"appName":"A"}]}"#).unwrap();
         assert_eq!(cfg.products[0].kit, "auto");
+        assert!(cfg.machine.work_root.is_empty(), "留空应保持空，界面才有 placeholder");
         assert!(cfg.products[0].include.is_empty());
         assert_eq!(cfg.schema_version, 1);
+    }
+
+    #[test]
+    fn old_config_still_loads() {
+        let cfg: Config = serde_json::from_str(
+            r#"{"schemaVersion":1,"machine":{"stagingRoot":"D:\\QDeploy\\staging"},"products":[{"appName":"A","outputDir":"D:\\out"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.machine.work_root, "D:\\QDeploy\\staging");
+        assert_eq!(cfg.products[0].app_name, "A");
+
+        let text = serde_json::to_string(&cfg).unwrap();
+        assert!(text.contains("\"workRoot\""), "{text}");
+        assert!(!text.contains("stagingRoot"), "{text}");
+        assert!(!text.contains("outputDir"), "{text}");
     }
 
     #[test]

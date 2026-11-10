@@ -76,7 +76,7 @@ QDeploy 是 Windows 桌面工具：把「Qt exe → windeployqt 部署 → 生�
 
 ## 危险区与陷阱
 
-- 「清空」阶段会 `remove_dir_all` 掉 `<暂存根>\<应用名>` 和 `<暂存根>\.iss\<应用名>`。`manifest::staging_dir` 会拒绝层级过浅的暂存根（如 `C:\`），这是故意的，不要放宽；手动跑应用前确认暂存根指向你愿意删的位置。
+- 「清空」阶段会 `remove_dir_all` 掉 `<工作目录>\deploy\<应用名>` 和 `<工作目录>\.iss\<应用名>`。`manifest::deploy_root` 会拒绝层级过浅的部署目录（工作目录是 `C:\` 时 `C:\deploy` 太浅），这是故意的，不要放宽；手动跑应用前确认工作目录指向你愿意删的位置。
 - 真实运行会调 `windeployqt.exe`、`ISCC.exe`，并写 `%APPDATA%\QDeploy\{config,history}.json` 与 `logs\<时间戳>\<应用名>.log`。调试优先用 `cargo test` 里的 fake，不要为试验反复真跑。
 - `probe.rs` 的 PE 导入项必须用 `Import.dll`（库名），不能回到 `Import.name`（函数符号）：用 `name` 会把所有 Qt exe 误判成「不是 Qt 程序」。
 - 只支持 64 位；README 写明 MSVC 套件未支持，别往那个方向扩。

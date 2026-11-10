@@ -21,9 +21,11 @@ export interface Live {
 export const store = reactive({
   cfg: {
     schemaVersion: 1,
-    machine: { qtRoot: "", isccExe: "", stagingRoot: "" },
+    machine: { qtRoot: "", isccExe: "", workRoot: "" },
     products: [],
   } as Config,
+  /** 工作目录留空时后端解析的默认位置，仅用于 placeholder/侧栏显示 */
+  defaultWorkRoot: "",
   history: [] as RunRecord[],
   kits: [] as Kit[],
   page: "products" as "products" | "history" | "settings",
@@ -42,6 +44,7 @@ export function currentProduct(): ProductConfig | null {
 
 export async function loadConfig() {
   store.cfg = await invoke<Config>("load_config");
+  store.defaultWorkRoot = await invoke<string>("default_work_root");
   const warning = await invoke<string | null>("take_load_warning");
   if (warning) store.message = warning;
 }
@@ -135,6 +138,19 @@ export async function startRun(stage: Stages, names?: string[]) {
     await invoke("start_run", { appNames: target, stage });
   } catch (e) {
     store.running = await invoke<boolean>("is_running").catch(() => false);
+    store.message = String(e);
+  }
+}
+
+/** 在资源管理器里打开目录；给安装包文件就打开它所在的那层。 */
+export async function openDir(path: string) {
+  if (!path.trim()) {
+    store.message = "还没设置路径";
+    return;
+  }
+  try {
+    await invoke("open_dir", { path });
+  } catch (e) {
     store.message = String(e);
   }
 }

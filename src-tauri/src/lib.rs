@@ -26,9 +26,24 @@ fn load_config(state: State<'_, AppState>) -> config::Config {
 #[tauri::command]
 fn save_config(state: State<'_, AppState>, cfg: config::Config) -> Result<(), String> {
     config::validate_names(&cfg.products).map_err(|e| e.to_string())?;
+    // 保存时就挡住太浅的工作目录，别等跑起来才发现；留空按默认位置校验。
+    manifest::deploy_root(&cfg.machine)?;
     config::save(&cfg).map_err(|e| e.to_string())?;
     *state.config.lock().unwrap() = cfg;
     Ok(())
+}
+
+/// 工作目录留空时界面显示的默认位置（exe 旁的 QDeployData）。
+#[tauri::command]
+fn default_work_root() -> String {
+    config::default_work_root()
+}
+
+/// 安装包目录（<工作目录>\installers）：产品页没跑过也能直接打开。
+#[tauri::command]
+fn installer_dir(state: State<'_, AppState>) -> Result<String, String> {
+    let machine = state.config.lock().unwrap().machine.clone();
+    manifest::installer_dir(&machine).map(|dir| dir.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -102,6 +117,29 @@ fn clear_staging(state: State<'_, AppState>, app_names: Vec<String>) -> Vec<Stri
     messages
 }
 
+/// Explorer 只认目录：给文件就打开它所在的那层；文件已被删/改名时同样退到那层。
+fn dir_to_open(path: &str) -> Result<std::path::PathBuf, String> {
+    let p = std::path::Path::new(path.trim());
+    if p.is_dir() {
+        return Ok(p.to_path_buf());
+    }
+    if let Some(dir) = p.parent().filter(|d| d.is_dir()) {
+        return Ok(dir.to_path_buf());
+    }
+    Err(format!("目录不存在：{path}"))
+}
+
+#[tauri::command]
+fn open_dir(path: String) -> Result<(), String> {
+    let dir = dir_to_open(&path)?;
+    // explorer 是系统自带的，不为一次打开引入插件依赖。
+    std::process::Command::new("explorer")
+        .arg(&dir)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("打开 {} 失败：{e}", dir.display()))
+}
+
 pub fn run() {
     let (cfg, warning) = config::load();
     tauri::Builder::default()
@@ -121,6 +159,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
+            default_work_root,
+            installer_dir,
             take_load_warning,
             load_history,
             scan_kits,
@@ -129,8 +169,30 @@ pub fn run() {
             start_run,
             cancel_run,
             is_running,
-            clear_staging
+            clear_staging,
+            open_dir
         ])
         .run(tauri::generate_context!())
         .expect("QDeploy failed to start");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dir_to_open_accepts_dirs_and_files_but_not_missing_paths() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("App 1.2.3 Installer.exe");
+        std::fs::write(&file, b"x").unwrap();
+
+        assert_eq!(dir_to_open(tmp.path().to_str().unwrap()).unwrap(), tmp.path());
+        assert_eq!(dir_to_open(file.to_str().unwrap()).unwrap(), tmp.path());
+        // 安装包被删掉后仍应打开它所在的目录
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(dir_to_open(file.to_str().unwrap()).unwrap(), tmp.path());
+
+        assert!(dir_to_open("").is_err());
+        assert!(dir_to_open(&tmp.path().join("gone/deeper/x").to_string_lossy()).is_err());
+    }
 }

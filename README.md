@@ -24,8 +24,8 @@
 
 单一 JSON：`%APPDATA%\QDeploy\config.json`，分两块：
 
-- `machine`：这台机器的路径（Qt 安装根、ISCC.exe、暂存根），换电脑只改这里；
-- `products`：每个产品一条（应用名、GUID、exe、套件、输出目录、增删清单）。
+- `machine`：这台机器的路径（Qt 安装根、ISCC.exe、工作目录），换电脑只改这里；工作目录留空即用默认值：QDeploy 安装目录里的 `QDeployData`（界面以 placeholder 显示），下面自动分成 `deploy`（部署）与 `installers`（安装包）两个子目录；
+- `products`：每个产品一条（应用名、GUID、exe、套件、增删清单）。
 
 运行历史：`%APPDATA%\QDeploy\history.json`，每次运行一条，含九个阶段的耗时与状态，界面的「发版记录」和列表里的阶段条都读它。
 日志按次落在 `%APPDATA%\QDeploy\logs\<时间戳>\<应用名>.log`。
@@ -33,12 +33,12 @@
 ## 一次执行
 
 1. 预检：exe 能探、套件能解析、版本可得、路径通过安全守卫
-2. 清空 `<暂存根>\<应用名>\` 与 `<暂存根>\.iss\<应用名>\`
+2. 清空 `<工作目录>\deploy\<应用名>\` 与 `<工作目录>\.iss\<应用名>\`
 3. 复制 exe、复制「添加文件」清单
 4. 在暂存目录里跑 `windeployqt <额外参数> <应用名>.exe`（按 exe 自动识别 debug/release）
 5. 按「移除文件」通配删掉多余文件
 6. 生成 `<应用名>.iss`、写出内置的 `common_setup.iss`，调 ISCC
-7. 成功（且本次包含打包）后删掉暂存与工作目录；失败或仅部署则保留，界面会标出路径
+7. 成功（且本次包含打包）后删掉暂存与 `.iss` 工作目录；失败或仅部署则保留，界面会标出路径并可直接打开所在目录
 
 ## 内置模板
 
@@ -46,13 +46,13 @@
 
 模板只认 5 个 `#define`，值全部由 QDeploy 算好，模板不再自己推导默认值：
 
-| define       | 值                                                                  |
-| ------------ | ------------------------------------------------------------------- |
-| `AppName`    | 应用名（= exe 名去掉 `.exe` = 暂存目录名）                          |
-| `AppGuid`    | 36 位 GUID，不带花括号                                              |
-| `AppVersion` | 短版本号（完整版本号去掉最后一段）；覆盖版本也按同一规则            |
-| `SourceDir`  | 暂存目录绝对路径 `<暂存根>\<应用名>`，里面有 exe 与全部要打包的文件 |
-| `OutputDir`  | 安装包输出目录绝对路径                                              |
+| define       | 值                                                                           |
+| ------------ | ---------------------------------------------------------------------------- |
+| `AppName`    | 应用名（= exe 名去掉 `.exe` = 部署目录里的文件夹名）                         |
+| `AppGuid`    | 36 位 GUID，不带花括号                                                       |
+| `AppVersion` | 短版本号（完整版本号去掉最后一段）；覆盖版本也按同一规则                     |
+| `SourceDir`  | 暂存目录绝对路径 `<工作目录>\deploy\<应用名>`，里面有 exe 与全部要打包的文件 |
+| `OutputDir`  | 安装包目录绝对路径 `<工作目录>\installers`                                   |
 
 ISCC 的产物必须叫 `<应用名> <短版本号> Installer.exe` 并落在 `OutputDir` 下，工具靠这个文件名判断本次是否成功。
 
@@ -61,8 +61,8 @@ ISCC 的产物必须叫 `<应用名> <短版本号> Installer.exe` 并落在 `Ou
     #define AppName "<应用名>"
     #define AppGuid "<GUID，不带花括号>"
     #define AppVersion "<短版本号>"
-    #define SourceDir "<暂存根>\<应用名>"
-    #define OutputDir "<产品输出目录>"
+    #define SourceDir "<工作目录>\deploy\<应用名>"
+    #define OutputDir "<工作目录>\installers"
     #include "common_setup.iss"
 
 模板本身只处理 Inno 的安装行为（安装/卸载、桌面图标、中文界面、x64），不处理 VC 运行库：MinGW 运行库由部署阶段拷进暂存目录，MSVC 工具链不支持。无 BOM 的 UTF-8 脚本与 `x64compatible` 都要求 Inno Setup 6.3+。
@@ -72,4 +72,4 @@ ISCC 的产物必须叫 `<应用名> <短版本号> Installer.exe` 并落在 `Ou
 - 只做 64 位；MSVC 工具链未支持（界面也不提供）。
 - exe 文件名必须等于 `<应用名>.exe`，因为模板按 AppName 拼 exe 路径。
 - 版本号由 QDeploy 从 exe 版本资源读；读不到需在产品的「版本覆盖」里手填。
-- 暂存根路径太浅（如 `C:\`）会被拒绝删除，这是故意的。
+- 工作目录在盘根（如 `C:\`）或太浅会被拒绝删除，这是故意的。

@@ -1,7 +1,7 @@
 export interface MachineConfig {
   qtRoot: string;
   isccExe: string;
-  stagingRoot: string;
+  workRoot: string;
 }
 
 export interface ManifestEntry {
@@ -14,7 +14,6 @@ export interface ProductConfig {
   appId: string;
   exePath: string;
   kit: string;
-  outputDir: string;
   windeployqtArgs: string[];
   versionOverride: string;
   include: ManifestEntry[];
@@ -95,7 +94,6 @@ export function emptyProduct(): ProductConfig {
     appId: "",
     exePath: "",
     kit: "auto",
-    outputDir: "",
     windeployqtArgs: [],
     versionOverride: "",
     include: [],
