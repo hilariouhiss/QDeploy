@@ -32,31 +32,27 @@ function go(page: "products" | "history" | "settings") {
   store.page = page;
 }
 
-const workTail = computed(
+const workRoot = computed(
   () => store.cfg.machine.workRoot || store.defaultWorkRoot || "工作目录未设置",
 );
-const failed = computed(() => store.history.filter((r) => !r.ok).length);
+const iscc = computed(() => (store.cfg.machine.isccExe ? "已设置" : "未设置"));
 </script>
 
 <template>
   <div class="frame">
-    <header class="topbar" data-tauri-drag-region>
-      <svg class="mark" viewBox="0 0 20 20" aria-hidden="true" data-tauri-drag-region>
-        <rect x="0" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
-        <rect x="7.2" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
-        <rect x="14.4" y="0" width="5.6" height="5.6" rx="1" fill="#131416" />
-        <rect x="0" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
-        <rect x="7.2" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416" />
-        <rect x="14.4" y="7.2" width="5.6" height="5.6" rx="1" fill="#dfe3e5" />
-        <rect x="0" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
-        <rect x="7.2" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
-        <rect x="14.4" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416" />
+    <header class="strip" data-tauri-drag-region>
+      <svg class="mark" viewBox="0 0 18 18" aria-hidden="true" data-tauri-drag-region>
+        <rect x="0" y="0" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
+        <rect x="6.6" y="0" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
+        <rect x="13.2" y="0" width="4.8" height="4.8" rx="0.9" fill="#b9bec5" />
+        <rect x="0" y="6.6" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
+        <rect x="6.6" y="6.6" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
+        <rect x="13.2" y="6.6" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
+        <rect x="0" y="13.2" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
+        <rect x="6.6" y="13.2" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
+        <rect x="13.2" y="13.2" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a" />
       </svg>
       <span class="brand" data-tauri-drag-region>QDeploy</span>
-      <div class="scope" data-tauri-drag-region>
-        <span class="mono">{{ store.cfg.machine.qtRoot || "Qt 根未设置" }}</span>
-        <span>{{ store.kits.length }} 个套件</span>
-      </div>
       <div class="wincontrols">
         <button class="winbtn" title="最小化" @click="win.minimize()">
           <svg viewBox="0 0 16 16">
@@ -96,32 +92,46 @@ const failed = computed(() => store.history.filter((r) => !r.ok).length);
       </div>
     </header>
 
-    <nav class="side">
-      <button class="navitem" :class="{ on: store.page === 'products' }" @click="go('products')">
-        产品<span class="count">{{ store.cfg.products.length }}</span>
-      </button>
-      <button class="navitem" :class="{ on: store.page === 'history' }" @click="go('history')">
-        发版记录<span class="count">{{ store.history.length }}</span>
-      </button>
-      <button class="navitem" :class="{ on: store.page === 'settings' }" @click="go('settings')">
-        设置
-      </button>
-      <div class="side-foot">
-        <b>本机</b>
-        {{ workTail }}
-        <div v-if="failed" style="color: var(--negative); margin-top: 6px">
-          {{ failed }} 次失败记录
-        </div>
+    <nav class="side" aria-label="主导航">
+      <div class="scope">
+        <div class="scope-label">本机</div>
+        <div class="scope-path" :title="workRoot">{{ workRoot }}</div>
+        <div class="scope-meta">{{ store.kits.length }} 个套件 · ISCC {{ iscc }}</div>
       </div>
+      <div class="nav">
+        <button
+          class="navitem"
+          :class="{ on: store.page === 'products' }"
+          :aria-current="store.page === 'products' ? 'page' : undefined"
+          @click="go('products')"
+        >
+          产品
+        </button>
+        <button
+          class="navitem"
+          :class="{ on: store.page === 'history' }"
+          :aria-current="store.page === 'history' ? 'page' : undefined"
+          @click="go('history')"
+        >
+          发版记录
+        </button>
+        <button
+          class="navitem"
+          :class="{ on: store.page === 'settings' }"
+          :aria-current="store.page === 'settings' ? 'page' : undefined"
+          @click="go('settings')"
+        >
+          设置
+        </button>
+      </div>
+      <div class="side-foot">模板 <span class="mono">common_setup.iss</span></div>
     </nav>
 
-    <div class="sheetwrap">
-      <main class="sheet">
-        <ProductsView v-if="store.page === 'products' && !store.detail" />
-        <ProductView v-else-if="store.page === 'products'" />
-        <HistoryView v-else-if="store.page === 'history'" />
-        <SettingsView v-else />
-      </main>
-    </div>
+    <main class="canvas">
+      <ProductsView v-if="store.page === 'products' && !store.detail" />
+      <ProductView v-else-if="store.page === 'products'" />
+      <HistoryView v-else-if="store.page === 'history'" />
+      <SettingsView v-else />
+    </main>
   </div>
 </template>

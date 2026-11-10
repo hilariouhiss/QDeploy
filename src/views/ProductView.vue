@@ -15,7 +15,6 @@ import {
   openDir,
 } from "../store";
 import type { ProbeInfo } from "../types";
-import Ledger from "../components/Ledger.vue";
 import ManifestEditor from "../components/ManifestEditor.vue";
 
 const p = computed(() => currentProduct());
@@ -33,6 +32,13 @@ const logText = computed(() => {
     : "还没跑过。";
 });
 const copied = ref(false);
+
+const failedStage = computed(() => {
+  const r = rec.value;
+  if (!r) return "";
+  const s = r.stages.find((x) => x.state === "fail");
+  return s ? s.name : "";
+});
 
 async function copyLog() {
   const text = logText.value;
@@ -128,9 +134,6 @@ function toggleArg(a: string) {
   else list.push(a);
 }
 
-const kitLabel = computed(() =>
-  p.value ? (p.value.kit === "auto" ? "自动识别" : p.value.kit) : "",
-);
 const history = computed(() =>
   store.history
     .filter((r) => r.appName === p.value?.appName)
@@ -140,31 +143,32 @@ const history = computed(() =>
 </script>
 
 <template>
-  <div v-if="!p" class="empty">左侧选一个产品。</div>
+  <div v-if="!p" class="empty">
+    <div class="t">没有选中产品</div>
+    <div class="d">从产品列表里点一行，或先新建一个产品。</div>
+    <div class="row"><button class="btn" @click="store.detail = false">回到产品列表</button></div>
+  </div>
 
-  <div v-else class="detailpage">
+  <div v-else>
     <div class="crumb">
       <button @click="store.detail = false">产品</button>
-      <span>/</span>
-      <span>{{ p.appName }}</span>
+      <span class="sep">/</span>
+      <span>{{ p.appName || "(未命名)" }}</span>
     </div>
 
     <div class="titlerow">
       <div>
         <h1>{{ p.appName || "(未命名)" }}</h1>
         <div class="sub">
-          {{ probe || "未识别" }}
+          {{ probe || "未识别 exe" }}
           <template v-if="rec">
-            · 版本 {{ rec.version || "—" }} ·
-            <span :class="rec.ok ? '' : 'neg'"
-              >上次 {{ formatWhen(rec.at) }} {{ rec.ok ? "成功" : "失败" }}</span
-            >
+            · 上次 {{ formatWhen(rec.at) }} {{ rec.ok ? "成功" : "失败" }} · 用时
+            {{ formatMs(rec.durationMs) }}
           </template>
           <template v-else> · 还没跑过</template>
         </div>
       </div>
       <div class="actions">
-        <button class="btn" @click="saveConfig">保存</button>
         <template v-if="running || store.running">
           <button class="btn" @click="cancelRun">停止后续</button>
         </template>
@@ -176,183 +180,208 @@ const history = computed(() =>
       </div>
     </div>
 
-    <div v-if="store.message" class="banner" style="margin-top: 12px">{{ store.message }}</div>
+    <div v-if="store.message" class="notice">
+      <span class="dot"></span>
+      <span>{{ store.message }}</span>
+      <button class="close" title="清除提示" @click="store.message = ''">×</button>
+    </div>
 
     <div class="detail">
-      <div>
-        <section class="section">
-          <div class="h2">
-            {{ running ? "本次运行" : "上次运行" }}
-            <span class="side">
-              <template v-if="rec && !running"
-                >{{ formatWhen(rec.at) }} · 用时 {{ formatMs(rec.durationMs)
-                }}<template v-if="rec.stagingKept"> · 暂存已保留</template></template
-              >
+      <div class="main">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>{{ running ? "本次运行" : "最近一次运行" }}</h2>
+            <span class="panel-note">
+              <template v-if="rec && !running">
+                {{ formatWhen(rec.at) }} · 用时 {{ formatMs(rec.durationMs)
+                }}<template v-if="rec.stagingKept"> · 暂存保留</template>
+              </template>
               <template v-else-if="running">进行中</template>
+              <template v-else>还没跑过</template>
             </span>
           </div>
-          <div class="steps">
-            <div
-              v-for="(s, i) in ledger(p.appName)"
-              :key="i"
-              class="st"
-              :class="s.state === 'now' ? 'run' : s.state"
-            >
-              <div class="bar"></div>
-              <div class="nm">{{ s.name }}</div>
-              <div class="ms">
-                {{
-                  s.state === "fail"
-                    ? "失败"
-                    : s.ms
-                      ? formatMs(s.ms)
+
+          <div class="panel-body">
+            <div class="stages">
+              <div
+                v-for="(s, i) in ledger(p.appName)"
+                :key="i"
+                class="stage"
+                :class="s.state === 'now' ? 'run' : s.state"
+              >
+                <div class="bar"></div>
+                <div class="nm">{{ s.name }}</div>
+                <div class="ms">
+                  {{
+                    s.state === "fail"
+                      ? "失败"
                       : s.state === "skipped"
                         ? "跳过"
-                        : ""
-                }}
+                        : s.ms
+                          ? formatMs(s.ms)
+                          : ""
+                  }}
+                </div>
+              </div>
+            </div>
+
+            <div v-if="rec && !rec.ok && !running" class="fail-line">
+              <span class="msg">{{
+                rec.message || failedStage + " 阶段失败，下面日志里有原因"
+              }}</span>
+              <button
+                v-if="rec.stagingKept"
+                class="btn"
+                title="暂存目录还在，跳过部署直接重跑 ISCC"
+                @click="startRun('package', [p.appName])"
+              >
+                仅打包重试
+              </button>
+            </div>
+
+            <div v-if="rec && !running" class="outputs">
+              <div v-if="rec.installer" class="output">
+                <span class="k">安装包</span>
+                <span class="v" :title="rec.installer">{{ rec.installer }}</span>
+                <button class="btn sm" @click="openDir(rec.installer)">打开目录</button>
+              </div>
+              <div v-else-if="installerRoot" class="output">
+                <span class="k">安装包目录</span>
+                <span class="v" :title="installerRoot">{{ installerRoot }}</span>
+                <button class="btn sm" @click="openDir(installerRoot)">打开目录</button>
+              </div>
+              <div v-if="rec.stagingKept" class="output">
+                <span class="k">暂存</span>
+                <span class="v" :title="rec.stagingKept">{{ rec.stagingKept }}</span>
+                <button class="btn sm" @click="openDir(rec.stagingKept)">打开</button>
               </div>
             </div>
           </div>
-          <div v-if="rec && !running && rec.installer" class="sub" style="margin-top: 10px">
-            安装包 <span class="mono">{{ rec.installer }}</span>
-            <button
-              class="btn ghost"
-              style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
-              @click="openDir(rec.installer)"
-            >
-              打开目录
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>日志</h2>
+            <span class="panel-note">最近一次运行</span>
+            <button class="btn sm" style="margin-left: 10px" @click="copyLog">
+              {{ copied ? "已复制" : "复制" }}
             </button>
           </div>
-          <div
-            v-else-if="installerRoot"
-            class="sub"
-            style="margin-top: 10px; overflow-wrap: anywhere"
-          >
-            安装包目录 <span class="mono">{{ installerRoot }}</span>
-            <button
-              class="btn ghost"
-              style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
-              @click="openDir(installerRoot)"
-            >
-              打开目录
-            </button>
-          </div>
-          <div v-if="rec && !running && rec.stagingKept" class="sub" style="margin-top: 6px">
-            暂存保留在 <span class="mono">{{ rec.stagingKept }}</span>
-            <button
-              class="btn ghost"
-              style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
-              @click="openDir(rec.stagingKept)"
-            >
-              打开目录
-            </button>
+          <div class="panel-body">
+            <pre class="log">{{ logText }}</pre>
           </div>
         </section>
 
-        <section class="section logsec">
-          <div class="h2">
-            日志
-            <span class="side">
-              最近一次
-              <button
-                class="btn ghost"
-                style="height: 24px; padding: 0 8px; font-size: 12px; margin-left: 8px"
-                @click="copyLog"
-              >
-                {{ copied ? "已复制" : "复制" }}
-              </button>
-            </span>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>发版记录</h2>
+            <span class="panel-note">最近 {{ history.length }} 次</span>
           </div>
-          <pre class="log">{{ logText }}</pre>
-          <div v-if="rec && !rec.ok" class="sub" style="margin-top: 12px">{{ rec.message }}</div>
-        </section>
-
-        <section class="section">
-          <div class="h2">
-            发版记录<span class="side">最近 {{ history.length }} 次</span>
+          <div class="panel-body">
+            <table class="mtable hist">
+              <thead>
+                <tr>
+                  <th class="n">版本</th>
+                  <th>时间</th>
+                  <th class="n">用时</th>
+                  <th>结果</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in history" :key="r.at">
+                  <td class="n p">{{ r.version || "—" }}</td>
+                  <td>{{ formatWhen(r.at) }}</td>
+                  <td class="n">{{ formatMs(r.durationMs) }}</td>
+                  <td class="res" :class="{ fail: !r.ok }">
+                    {{
+                      r.ok
+                        ? "成功"
+                        : (r.stages.find((s) => s.state === "fail")?.name || "") + " 失败"
+                    }}
+                  </td>
+                </tr>
+                <tr v-if="history.length === 0">
+                  <td colspan="4" class="muted">还没发过版</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <table class="mtable hist">
-            <thead>
-              <tr>
-                <th>版本</th>
-                <th>时间</th>
-                <th class="n">用时</th>
-                <th>结果</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="r in history" :key="r.at">
-                <td class="p">{{ r.version || "—" }}</td>
-                <td>{{ formatWhen(r.at) }}</td>
-                <td class="n">{{ formatMs(r.durationMs) }}</td>
-                <td :style="r.ok ? '' : 'color:var(--negative)'">{{ r.ok ? "成功" : "失败" }}</td>
-              </tr>
-              <tr v-if="history.length === 0">
-                <td colspan="4" class="muted">还没发过版</td>
-              </tr>
-            </tbody>
-          </table>
         </section>
       </div>
 
-      <aside>
-        <section class="section">
-          <div class="h2">配置</div>
-          <div class="row2">
-            <label class="field"
-              ><span>应用名</span><input v-model="p.appName" class="input"
-            /></label>
-            <label class="field"
-              ><span>GUID（不带花括号）</span><input v-model="p.appId" class="input mono"
-            /></label>
+      <aside class="aside">
+        <section class="railsec">
+          <div class="panel-head">
+            <h2>配置</h2>
+            <span class="panel-note">保存后生效</span>
           </div>
-          <label class="field" style="margin-top: 10px">
-            <span>exe 路径</span>
-            <div class="with-btn">
-              <input v-model="p.exePath" class="input mono" />
-              <button class="btn" @click="browseExe">浏览</button>
-            </div>
-          </label>
-          <div class="row2" style="margin-top: 10px">
+          <div class="panel-body">
             <label class="field">
-              <span>工具链</span>
+              <span class="lbl">应用名</span>
+              <input v-model="p.appName" class="input" />
+            </label>
+            <label class="field">
+              <span class="lbl">GUID<span class="hint">不带花括号</span></span>
+              <input v-model="p.appId" class="input mono" />
+            </label>
+            <label class="field">
+              <span class="lbl">exe 路径</span>
+              <div class="with-btn">
+                <input v-model="p.exePath" class="input mono" />
+                <button class="btn" @click="browseExe">浏览</button>
+              </div>
+            </label>
+            <label class="field">
+              <span class="lbl">工具链<span class="hint">按 exe 识别或手动指定</span></span>
               <select v-model="p.kit" class="select">
                 <option value="auto">自动识别</option>
                 <option v-for="k in store.kits" :key="k.id" :value="k.id">{{ k.id }}</option>
               </select>
             </label>
-            <label class="field"
-              ><span>版本覆盖（留空读 exe）</span
-              ><input v-model="p.versionOverride" class="input mono"
-            /></label>
+            <label class="field">
+              <span class="lbl">版本覆盖<span class="hint">留空读 exe</span></span>
+              <input v-model="p.versionOverride" class="input mono" placeholder="不覆盖" />
+            </label>
+            <label class="field">
+              <span class="lbl">windeployqt 额外参数<span class="hint">一行一个</span></span>
+              <div class="chips">
+                <button
+                  v-for="[a, name] in COMMON_ARGS"
+                  :key="a"
+                  class="chip"
+                  :class="{ on: hasArg(a) }"
+                  :title="a"
+                  @click="toggleArg(a)"
+                >
+                  {{ name }}
+                </button>
+              </div>
+              <textarea
+                v-model="argsText"
+                class="input mono"
+                rows="2"
+                placeholder="--no-translations"
+              ></textarea>
+            </label>
           </div>
-          <label class="field" style="margin-top: 10px">
-            <span>windeployqt 额外参数（一行一个）</span>
-            <div class="chips">
-              <button
-                v-for="[a, name] in COMMON_ARGS"
-                :key="a"
-                class="chip"
-                :class="{ on: hasArg(a) }"
-                :title="a"
-                @click="toggleArg(a)"
-              >
-                {{ name }}
-              </button>
-            </div>
-            <textarea
-              v-model="argsText"
-              class="input mono"
-              rows="2"
-              placeholder="--no-translations"
-              style="height: auto; padding: 7px 10px; resize: vertical"
-            ></textarea>
-          </label>
         </section>
 
-        <section class="section">
-          <ManifestEditor :product="p" />
+        <section class="railsec">
+          <div class="panel-head">
+            <h2>文件清单</h2>
+            <span class="panel-note">
+              添加 {{ p.include.length }} · 移除 {{ p.exclude.length }}
+            </span>
+          </div>
+          <div class="panel-body">
+            <ManifestEditor :product="p" />
+          </div>
         </section>
+
+        <div class="form-foot">
+          <button class="btn" @click="saveConfig">保存配置</button>
+          <span class="saved">{{ store.message === "已保存" ? "已保存" : "" }}</span>
+        </div>
       </aside>
     </div>
   </div>

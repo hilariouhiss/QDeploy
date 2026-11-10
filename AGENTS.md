@@ -4,7 +4,7 @@
 
 ## 项目概览
 
-QDeploy 是 Windows 桌面工具：把「Qt exe → windeployqt 部署 → 生成 iss → ISCC 出安装包」这条手工链路变成可重复、可检查、可批量执行的流水线。Tauri 2 应用，前端 Vue 3 + TypeScript + Vite（`src/`），后端 Rust（`src-tauri/src/`），两者只通过 Tauri command 与事件通信。`design/` 是界面 mockup 与图标源，不参与构建。
+QDeploy 是 Windows 桌面工具：把「Qt exe → windeployqt 部署 → 生成 iss → ISCC 出安装包」这条手工链路变成可重复、可检查、可批量执行的流水线。Tauri 2 应用，前端 Vue 3 + TypeScript + Vite（`src/`），后端 Rust（`src-tauri/src/`），两者只通过 Tauri command 与事件通信。`design/` 是图标源与画图脚本，不参与构建。
 
 ## 环境与首次启动
 
@@ -45,7 +45,7 @@ QDeploy 是 Windows 桌面工具：把「Qt exe → windeployqt 部署 → 生�
 | `src-tauri/src/history.rs`  | `history.json`，保留最近 300 条                                                                                           |
 | `src/store.ts`              | 前端唯一 reactive store；所有 invoke 与事件订阅集中在这                                                                   |
 | `src/views/`                | `ProductsView`（列表）/ `ProductView`（详情）/ `HistoryView`（发版记录）/ `SettingsView`（设置）                          |
-| `src/components/`           | `Ledger.vue` 九格阶段条、`ManifestEditor.vue` 文件清单                                                                    |
+| `src/components/`           | `Ledger.vue` 九阶段进度条、`ManifestEditor.vue` 文件清单                                                                  |
 
 分层规则：
 
@@ -57,8 +57,8 @@ QDeploy 是 Windows 桌面工具：把「Qt exe → windeployqt 部署 → 生�
 ## 约定
 
 - Rust：edition 2021；单测写在同一文件的 `#[cfg(test)] mod tests`；command 边界用 `Result<T, String>`，内部用 anyhow；错误文案是给用户看的中文。
-- 前端：Vue 3 `<script setup lang="ts">`，2 空格、双引号、分号；样式以手写 CSS 类为主（`src/style.css` 里的 `.h2` / `.btn` / `.input` / `.mtable` 等），Tailwind 只做 `@import "tailwindcss"`；字体是随包 woff2，不要引 CDN。
-- 界面克制：只有失败项带颜色。
+- 前端：Vue 3 `<script setup lang="ts">`，2 空格、双引号、分号；样式以手写 CSS 类为主（`src/style.css` 里的 `.btn` / `.input` / `.mtable` / `.panel` 等），Tailwind 只做 `@import "tailwindcss"`；字体是随包 woff2，不要引 CDN。
+- 界面克制：静止界面只有失败项带颜色，运行中的阶段用唯一的蓝色。
 - 首帧由 `index.html` 直接画出、`src/main.ts` 兜底错误面板；不要让启动界面依赖 JS 才能显示。
 - 自绘标题栏：`decorations: false`，拖动区用 `data-tauri-drag-region`（见 `App.vue`）。
 

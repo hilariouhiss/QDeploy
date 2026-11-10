@@ -2,6 +2,19 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import "./style.css";
 
+const MARK =
+  '<svg class="boot-mark" viewBox="0 0 18 18" aria-hidden="true">' +
+  '<rect x="0" y="0" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  '<rect x="6.6" y="0" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  '<rect x="13.2" y="0" width="4.8" height="4.8" rx="0.9" fill="#b9bec5"/>' +
+  '<rect x="0" y="6.6" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  '<rect x="6.6" y="6.6" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  '<rect x="13.2" y="6.6" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  '<rect x="0" y="13.2" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  '<rect x="6.6" y="13.2" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  '<rect x="13.2" y="13.2" width="4.8" height="4.8" rx="0.9" fill="#0a0a0a"/>' +
+  "</svg>";
+
 function showFatal(message: string) {
   const host = document.getElementById("app");
   if (!host) return;
@@ -10,17 +23,7 @@ function showFatal(message: string) {
   const box = document.createElement("div");
   box.className = "boot boot-error";
   box.innerHTML =
-    '<svg class="boot-mark" viewBox="0 0 20 20" aria-hidden="true">' +
-    '<rect x="0" y="0" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    '<rect x="7.2" y="0" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    '<rect x="14.4" y="0" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    '<rect x="0" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    '<rect x="7.2" y="7.2" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    '<rect x="14.4" y="7.2" width="5.6" height="5.6" rx="1" fill="#dfe3e5"/>' +
-    '<rect x="0" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    '<rect x="7.2" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    '<rect x="14.4" y="14.4" width="5.6" height="5.6" rx="1" fill="#131416"/>' +
-    "</svg>" +
+    MARK +
     '<div class="boot-name">QDeploy</div>' +
     '<div class="boot-note">界面出错了：' +
     text.replace(/[<>&]/g, "") +
