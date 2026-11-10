@@ -16,6 +16,8 @@
 
 字体随包（Geist / Geist Mono 的 woff2 在 `src/assets/fonts/`），不依赖 CDN；中文回落到系统雅黑。
 
+侧栏的「安装脚本」页只读查看内置模板 `common_setup.iss` 和每个产品的 `<应用名>.iss`：产品脚本按当前配置实时生成（不读磁盘，成功打包后 `.iss` 目录会被清理），可一键复制。
+
 窗口没有系统标题栏：顶部 44px 是自绘的标题栏（标记、名字、最小化/最大化/关闭），机器与工作目录在左侧栏顶部，拖动区和按钮分开，边缘仍然可缩放（窗口样式保留 WS_THICKFRAME）。
 首帧由 `index.html` 直接画出底色与标记，不走 JS；任何渲染异常会被 `src/main.ts` 拦住并显示成错误面板，不会白屏。
 应用图标是同一个 3×3 标记（`design/app-icon.png` 源图，`pnpm tauri icon` 生成全套）。
@@ -42,7 +44,7 @@
 
 ## 内置模板
 
-安装脚本模板 `common_setup.iss` 编在 QDeploy 里（`src-tauri/templates/common_setup.iss`，`include_str!` 进 exe），界面里没有、也不接受外部路径。每次打包时 QDeploy 在工作目录里写两份文件再调 ISCC：`<应用名>.iss`（生成的 5 行 `#define` + 一行 include）和 `common_setup.iss`（模板原文，只为了给 ISPP 一个可 `#include` 的文件）。要改安装行为就改仓库里这个模板再重新构建 QDeploy。
+安装脚本模板 `common_setup.iss` 编在 QDeploy 里（`src-tauri/templates/common_setup.iss`，`include_str!` 进 exe），界面里只读展示内置模板，不接受外部模板路径。每次打包时 QDeploy 在工作目录里写两份文件再调 ISCC：`<应用名>.iss`（生成的 5 行 `#define` + 一行 include）和 `common_setup.iss`（模板原文，只为了给 ISPP 一个可 `#include` 的文件）。要改安装行为就改仓库里这个模板再重新构建 QDeploy。
 
 模板只认 5 个 `#define`，值全部由 QDeploy 算好，模板不再自己推导默认值：
 

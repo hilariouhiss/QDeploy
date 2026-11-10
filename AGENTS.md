@@ -32,20 +32,20 @@ QDeploy 是 Windows 桌面工具：把「Qt exe → windeployqt 部署 → 生�
 
 ## 代码地图
 
-| 位置                        | 职责                                                                                                                      |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `src-tauri/src/lib.rs`      | Tauri command 注册、`AppState`（配置 Mutex + running/cancel 标志）                                                        |
-| `src-tauri/src/runner.rs`   | 九阶段流水线、`STAGES`、`Ticker` 计时、`ToolRunner` trait（生产用 `RealTools`，测试用 fake）                              |
-| `src-tauri/src/batch.rs`    | 后台线程顺序跑多个产品，写日志，发 `run://product` / `run://log` / `run://done` 事件                                      |
-| `src-tauri/src/probe.rs`    | 用 goblin 读 PE 导入表，判定 Qt 主版本、位数、编译器                                                                      |
-| `src-tauri/src/kits.rs`     | 扫 `<qt_root>/<版本>/<kit>/bin/windeployqt.exe`，kit id = `<版本>-<compiler>-<arch>`                                      |
-| `src-tauri/src/manifest.rs` | 暂存目录、添加/移除清单、复制与通配排除、路径越界守卫                                                                     |
-| `src-tauri/src/iss.rs`      | 生成 `<应用名>.iss`（5 个 define + include 模板）；模板 `src-tauri/templates/common_setup.iss` 用 `include_str!` 编进 exe |
-| `src-tauri/src/config.rs`   | `config.json` 读写与校验（应用名字符、36 位 GUID 等）                                                                     |
-| `src-tauri/src/history.rs`  | `history.json`，保留最近 300 条                                                                                           |
-| `src/store.ts`              | 前端唯一 reactive store；所有 invoke 与事件订阅集中在这                                                                   |
-| `src/views/`                | `ProductsView`（列表）/ `ProductView`（详情）/ `HistoryView`（发版记录）/ `SettingsView`（设置）                          |
-| `src/components/`           | `Ledger.vue` 九阶段进度条、`ManifestEditor.vue` 文件清单                                                                  |
+| 位置                        | 职责                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/src/lib.rs`      | Tauri command 注册、`AppState`（配置 Mutex + running/cancel 标志）                                                          |
+| `src-tauri/src/runner.rs`   | 九阶段流水线、`STAGES`、`Ticker` 计时、`ToolRunner` trait（生产用 `RealTools`，测试用 fake）                                |
+| `src-tauri/src/batch.rs`    | 后台线程顺序跑多个产品，写日志，发 `run://product` / `run://log` / `run://done` 事件                                        |
+| `src-tauri/src/probe.rs`    | 用 goblin 读 PE 导入表，判定 Qt 主版本、位数、编译器                                                                        |
+| `src-tauri/src/kits.rs`     | 扫 `<qt_root>/<版本>/<kit>/bin/windeployqt.exe`，kit id = `<版本>-<compiler>-<arch>`                                        |
+| `src-tauri/src/manifest.rs` | 暂存目录、添加/移除清单、复制与通配排除、路径越界守卫                                                                       |
+| `src-tauri/src/iss.rs`      | 生成 `<应用名>.iss`（5 个 define + include 模板）；模板 `src-tauri/templates/common_setup.iss` 用 `include_str!` 编进 exe   |
+| `src-tauri/src/config.rs`   | `config.json` 读写与校验（应用名字符、36 位 GUID 等）                                                                       |
+| `src-tauri/src/history.rs`  | `history.json`，保留最近 300 条                                                                                             |
+| `src/store.ts`              | 前端唯一 reactive store；所有 invoke 与事件订阅集中在这                                                                     |
+| `src/views/`                | `ProductsView`（列表）/ `ProductView`（详情）/ `HistoryView`（发版记录）/ `ScriptsView`（安装脚本）/ `SettingsView`（设置） |
+| `src/components/`           | `Ledger.vue` 九阶段进度条、`ManifestEditor.vue` 文件清单                                                                    |
 
 分层规则：
 

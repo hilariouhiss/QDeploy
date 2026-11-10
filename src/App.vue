@@ -5,6 +5,7 @@ import { store, loadConfig, fetchHistory, wireEvents, scanKits } from "./store";
 import ProductsView from "./views/ProductsView.vue";
 import ProductView from "./views/ProductView.vue";
 import HistoryView from "./views/HistoryView.vue";
+import ScriptsView from "./views/ScriptsView.vue";
 import SettingsView from "./views/SettingsView.vue";
 
 const win = getCurrentWindow();
@@ -27,7 +28,7 @@ async function toggleMax() {
 }
 
 /** Sidebar switch must also leave the product detail, or "产品" looks dead there. */
-function go(page: "products" | "history" | "settings") {
+function go(page: "products" | "history" | "scripts" | "settings") {
   store.detail = false;
   store.page = page;
 }
@@ -117,6 +118,14 @@ const iscc = computed(() => (store.cfg.machine.isccExe ? "已设置" : "未设�
         </button>
         <button
           class="navitem"
+          :class="{ on: store.page === 'scripts' }"
+          :aria-current="store.page === 'scripts' ? 'page' : undefined"
+          @click="go('scripts')"
+        >
+          安装脚本
+        </button>
+        <button
+          class="navitem"
           :class="{ on: store.page === 'settings' }"
           :aria-current="store.page === 'settings' ? 'page' : undefined"
           @click="go('settings')"
@@ -131,6 +140,7 @@ const iscc = computed(() => (store.cfg.machine.isccExe ? "已设置" : "未设�
       <ProductsView v-if="store.page === 'products' && !store.detail" />
       <ProductView v-else-if="store.page === 'products'" />
       <HistoryView v-else-if="store.page === 'history'" />
+      <ScriptsView v-else-if="store.page === 'scripts'" />
       <SettingsView v-else />
     </main>
   </div>

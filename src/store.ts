@@ -28,7 +28,9 @@ export const store = reactive({
   defaultWorkRoot: "",
   history: [] as RunRecord[],
   kits: [] as Kit[],
-  page: "products" as "products" | "history" | "settings",
+  page: "products" as "products" | "history" | "scripts" | "settings",
+  /** 脚本页记住上次选中的产品；空串表示内置模板 */
+  scriptApp: "",
   detail: false,
   current: -1,
   checked: {} as Record<string, boolean>,
@@ -40,6 +42,13 @@ export const store = reactive({
 
 export function currentProduct(): ProductConfig | null {
   return store.cfg.products[store.current] ?? null;
+}
+
+/** 打开安装脚本页；传了产品名就定位到它。 */
+export function openScripts(appName?: string) {
+  if (appName) store.scriptApp = appName;
+  store.detail = false;
+  store.page = "scripts";
 }
 
 export async function loadConfig() {
@@ -61,6 +70,24 @@ export async function saveConfig(): Promise<boolean> {
   } catch (e) {
     store.message = "保存失败：" + String(e);
     return false;
+  }
+}
+
+/** 复制文本；个别 WebView 不给 Clipboard API，退回临时 textarea。 */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
   }
 }
 

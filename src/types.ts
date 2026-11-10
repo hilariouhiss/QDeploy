@@ -34,6 +34,14 @@ export interface Kit {
   windeployqt: string;
 }
 
+/** scripts 页：内置模板或某个产品的 iss 生成结果 */
+export interface IssScript {
+  appName: string;
+  title: string;
+  text: string;
+  path: string;
+}
+
 export interface ProbeInfo {
   ok: boolean;
   error: string;

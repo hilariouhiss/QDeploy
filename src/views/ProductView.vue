@@ -13,6 +13,8 @@ import {
   startRun,
   cancelRun,
   openDir,
+  copyText,
+  openScripts,
 } from "../store";
 import type { ProbeInfo } from "../types";
 import ManifestEditor from "../components/ManifestEditor.vue";
@@ -41,20 +43,7 @@ const failedStage = computed(() => {
 });
 
 async function copyLog() {
-  const text = logText.value;
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    // 个别 WebView 不给 Clipboard API，退回临时 textarea
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    ta.remove();
-  }
+  if (!(await copyText(logText.value))) return;
   copied.value = true;
   setTimeout(() => (copied.value = false), 1200);
 }
@@ -199,6 +188,14 @@ const history = computed(() =>
               <template v-else-if="running">进行中</template>
               <template v-else>还没跑过</template>
             </span>
+            <button
+              class="btn sm"
+              style="margin-left: 10px"
+              @click="openScripts(p.appName)"
+              title="查看这个产品打包时写出的 iss"
+            >
+              查看 iss
+            </button>
           </div>
 
           <div class="panel-body">

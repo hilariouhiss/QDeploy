@@ -46,6 +46,12 @@ fn installer_dir(state: State<'_, AppState>) -> Result<String, String> {
     manifest::installer_dir(&machine).map(|dir| dir.to_string_lossy().to_string())
 }
 
+/// 脚本页：内置模板，或按传入配置生成的产品 iss（不落盘）。
+#[tauri::command]
+fn iss_script(cfg: config::Config, app_name: Option<String>) -> Result<iss::IssScript, String> {
+    iss::script_for(&cfg, app_name.as_deref())
+}
+
 #[tauri::command]
 fn take_load_warning(state: State<'_, AppState>) -> Option<String> {
     state.load_warning.lock().unwrap().take()
@@ -161,6 +167,7 @@ pub fn run() {
             save_config,
             default_work_root,
             installer_dir,
+            iss_script,
             take_load_warning,
             load_history,
             scan_kits,

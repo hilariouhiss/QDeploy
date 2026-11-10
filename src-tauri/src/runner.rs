@@ -168,15 +168,7 @@ fn run_inner(ctx: &RunCtx<'_>, stage: Stage, t: &mut Ticker<'_>) -> Result<RunRe
     } else {
         (ctx.log)(&format!("识别为 {} → {}", kit.id, kit.windeployqt));
     }
-    let version_full = if p.version_override.trim().is_empty() {
-        info.version_full.clone()
-    } else {
-        p.version_override.trim().to_string()
-    };
-    if version_full.is_empty() {
-        bail!("exe 没有版本资源，且没设版本覆盖");
-    }
-    let version_short = probe::short_version(&version_full);
+    let version_short = iss::version_short(p, &info).map_err(anyhow::Error::msg)?;
 
     let staging = manifest::staging_dir(m, &p.app_name).map_err(|e| anyhow::anyhow!(e))?;
 
